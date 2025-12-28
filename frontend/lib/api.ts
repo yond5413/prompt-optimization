@@ -1,7 +1,26 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { supabase } from "./supabase";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+
+async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session?.access_token) {
+    throw new Error("Not authenticated. Please log in.");
+  }
+
+  const headers = new Headers(options.headers);
+  headers.set("Authorization", `Bearer ${session.access_token}`);
+  headers.set("Content-Type", "application/json");
+
+  return fetch(url, {
+    ...options,
+    headers,
+  });
+}
 
 export async function fetchPrompts() {
-  const response = await fetch(`${API_BASE_URL}/api/prompts`);
+  const response = await authFetch(`${API_BASE_URL}/api/prompts`);
   if (!response.ok) throw new Error("Failed to fetch prompts");
   return response.json();
 }
@@ -9,13 +28,13 @@ export async function fetchPrompts() {
 export async function createPrompt(data: {
   name: string;
   task_type: string;
+  content?: string;
   input_schema?: any;
   output_schema?: any;
   metadata?: any;
 }) {
-  const response = await fetch(`${API_BASE_URL}/api/prompts`, {
+  const response = await authFetch(`${API_BASE_URL}/api/prompts`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create prompt");
@@ -23,7 +42,7 @@ export async function createPrompt(data: {
 }
 
 export async function fetchPromptVersions(promptId: string) {
-  const response = await fetch(`${API_BASE_URL}/api/prompts/${promptId}/versions`);
+  const response = await authFetch(`${API_BASE_URL}/api/prompts/${promptId}/versions`);
   if (!response.ok) throw new Error("Failed to fetch versions");
   return response.json();
 }
@@ -37,9 +56,8 @@ export async function createPromptVersion(
     rationale?: string;
   }
 ) {
-  const response = await fetch(`${API_BASE_URL}/api/prompts/${promptId}/versions`, {
+  const response = await authFetch(`${API_BASE_URL}/api/prompts/${promptId}/versions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create version");
@@ -47,7 +65,7 @@ export async function createPromptVersion(
 }
 
 export async function activateVersion(promptId: string, versionId: string) {
-  const response = await fetch(
+  const response = await authFetch(
     `${API_BASE_URL}/api/prompts/${promptId}/versions/${versionId}/activate`,
     { method: "POST" }
   );
@@ -56,7 +74,7 @@ export async function activateVersion(promptId: string, versionId: string) {
 }
 
 export async function fetchDatasets() {
-  const response = await fetch(`${API_BASE_URL}/api/datasets`);
+  const response = await authFetch(`${API_BASE_URL}/api/datasets`);
   if (!response.ok) throw new Error("Failed to fetch datasets");
   return response.json();
 }
@@ -68,9 +86,8 @@ export async function createDataset(data: {
   output_format?: any;
   evaluation_strategy?: string;
 }) {
-  const response = await fetch(`${API_BASE_URL}/api/datasets`, {
+  const response = await authFetch(`${API_BASE_URL}/api/datasets`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create dataset");
@@ -81,9 +98,8 @@ export async function createEvaluation(data: {
   prompt_version_id: string;
   dataset_id: string;
 }) {
-  const response = await fetch(`${API_BASE_URL}/api/evaluations`, {
+  const response = await authFetch(`${API_BASE_URL}/api/evaluations`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create evaluation");
@@ -91,7 +107,7 @@ export async function createEvaluation(data: {
 }
 
 export async function fetchEvaluations() {
-  const response = await fetch(`${API_BASE_URL}/api/evaluations`);
+  const response = await authFetch(`${API_BASE_URL}/api/evaluations`);
   if (!response.ok) throw new Error("Failed to fetch evaluations");
   return response.json();
 }
@@ -102,9 +118,8 @@ export async function runImprovement(data: {
   num_candidates?: number;
   auto_promote?: boolean;
 }) {
-  const response = await fetch(`${API_BASE_URL}/api/improvements/improve`, {
+  const response = await authFetch(`${API_BASE_URL}/api/improvements/improve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to run improvement");
@@ -116,12 +131,16 @@ export async function promoteCandidate(data: {
   candidate_id: string;
   reason?: string;
 }) {
-  const response = await fetch(`${API_BASE_URL}/api/improvements/promote`, {
+  const response = await authFetch(`${API_BASE_URL}/api/improvements/promote`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to promote candidate");
   return response.json();
 }
 
+export async function fetchStats() {
+  const response = await authFetch(`${API_BASE_URL}/api/stats`);
+  if (!response.ok) throw new Error("Failed to fetch stats");
+  return response.json();
+}

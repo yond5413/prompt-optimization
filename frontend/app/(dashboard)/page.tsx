@@ -1,25 +1,52 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, Database, BarChart3, Clock } from "lucide-react";
+import { fetchStats } from "@/lib/api";
 
 export default function Dashboard() {
+  const [statsData, setStatsData] = useState({
+    prompts: 0,
+    datasets: 0,
+    evaluations: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const data = await fetchStats();
+        setStatsData(data);
+      } catch (err) {
+        console.error("Failed to load stats:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadStats();
+  }, []);
+
   const stats = [
     {
       title: "Active Prompts",
-      value: "0",
+      value: isLoading ? "..." : statsData.prompts.toString(),
       icon: MessageSquare,
-      description: "Prompts currently in production",
+      description: "Total prompts created",
     },
     {
       title: "Datasets",
-      value: "0",
+      value: isLoading ? "..." : statsData.datasets.toString(),
       icon: Database,
       description: "Total datasets for evaluation",
     },
     {
       title: "Evaluations",
-      value: "0",
+      value: isLoading ? "..." : statsData.evaluations.toString(),
       icon: BarChart3,
-      description: "Runs completed in last 30 days",
+      description: "Total evaluation runs",
     },
   ];
 
@@ -70,16 +97,22 @@ export default function Dashboard() {
             </div>
             <ul className="space-y-2 text-sm font-medium">
               <li className="flex items-center gap-2 hover:underline cursor-pointer">
-                <MessageSquare className="h-4 w-4" />
-                Create your first prompt
+                <Link href="/prompts/new" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Create your first prompt
+                </Link>
               </li>
               <li className="flex items-center gap-2 hover:underline cursor-pointer">
-                <Database className="h-4 w-4" />
-                Import a dataset
+                <Link href="/datasets" className="flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Import a dataset
+                </Link>
               </li>
               <li className="flex items-center gap-2 hover:underline cursor-pointer">
-                <BarChart3 className="h-4 w-4" />
-                Run an evaluation
+                <Link href="/evaluations" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Run an evaluation
+                </Link>
               </li>
             </ul>
           </CardContent>
@@ -88,4 +121,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

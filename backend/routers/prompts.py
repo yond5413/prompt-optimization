@@ -1,23 +1,31 @@
-from fastapi import APIRouter, HTTPException
-from typing import List
+from fastapi import APIRouter, HTTPException, Depends
+from typing import List, Any
 from uuid import UUID
 from db.supabase_client import supabase
 from models.schemas import Prompt, PromptCreate, PromptVersion, PromptVersionCreate
+from dependencies import get_current_user
 
 router = APIRouter()
 
 
 @router.get("", response_model=List[Prompt])
-async def list_prompts():
+async def list_prompts(current_user: Any = Depends(get_current_user)):
     """List all prompts"""
     response = supabase.table("prompts").select("*").order("created_at", desc=True).execute()
     return response.data
 
 
 @router.post("", response_model=Prompt)
-async def create_prompt(prompt: PromptCreate):
+async def create_prompt(prompt: PromptCreate, current_user: Any = Depends(get_current_user)):
     """Create a new prompt"""
-    response = supabase.table("prompts").insert(prompt.model_dump()).execute()
+    prompt_data = prompt.model_dump()
+    # Extract content as it's not part of the prompts table
+    content = prompt_data.pop("content", "")
+    
+    # Set user_id from authenticated user for RLS policy
+    prompt_data["user_id"] = current_user.id
+    
+    response = supabase.table("prompts").insert(prompt_data).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to create prompt")
     
@@ -26,8 +34,8 @@ async def create_prompt(prompt: PromptCreate):
     version_data = {
         "prompt_id": prompt_id,
         "version": 1,
-        "content": "",
-        "is_active": False
+        "content": content,
+        "is_active": True  # Make the first version active by default
     }
     supabase.table("prompt_versions").insert(version_data).execute()
     
@@ -35,7 +43,7 @@ async def create_prompt(prompt: PromptCreate):
 
 
 @router.get("/{prompt_id}", response_model=Prompt)
-async def get_prompt(prompt_id: UUID):
+async def get_prompt(prompt_id: UUID, current_user: Any = Depends(get_current_user)):
     """Get a specific prompt"""
     response = supabase.table("prompts").select("*").eq("id", str(prompt_id)).execute()
     if not response.data:
@@ -44,15 +52,25 @@ async def get_prompt(prompt_id: UUID):
 
 
 @router.get("/{prompt_id}/versions", response_model=List[PromptVersion])
-async def list_versions(prompt_id: UUID):
+async def list_versions(prompt_id: UUID, current_user: Any = Depends(get_current_user)):
     """List all versions of a prompt"""
+    # Check ownership
+    prompt_response = supabase.table("prompts").select("id").eq("id", str(prompt_id)).execute()
+    if not prompt_response.data:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+        
     response = supabase.table("prompt_versions").select("*").eq("prompt_id", str(prompt_id)).order("version", desc=True).execute()
     return response.data
 
 
 @router.post("/{prompt_id}/versions", response_model=PromptVersion)
-async def create_version(prompt_id: UUID, version: PromptVersionCreate):
+async def create_version(prompt_id: UUID, version: PromptVersionCreate, current_user: Any = Depends(get_current_user)):
     """Create a new version of a prompt"""
+    # Check ownership
+    prompt_response = supabase.table("prompts").select("id").eq("id", str(prompt_id)).execute()
+    if not prompt_response.data:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+
     # Get current max version
     versions_response = supabase.table("prompt_versions").select("version").eq("prompt_id", str(prompt_id)).order("version", desc=True).limit(1).execute()
     next_version = 1
@@ -76,8 +94,13 @@ async def create_version(prompt_id: UUID, version: PromptVersionCreate):
 
 
 @router.post("/{prompt_id}/versions/{version_id}/activate")
-async def activate_version(prompt_id: UUID, version_id: UUID):
+async def activate_version(prompt_id: UUID, version_id: UUID, current_user: Any = Depends(get_current_user)):
     """Set a version as active (deactivates others)"""
+    # Check ownership
+    prompt_response = supabase.table("prompts").select("id").eq("id", str(prompt_id)).execute()
+    if not prompt_response.data:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+
     # Deactivate all versions for this prompt
     supabase.table("prompt_versions").update({"is_active": False}).eq("prompt_id", str(prompt_id)).execute()
     
@@ -86,4 +109,3 @@ async def activate_version(prompt_id: UUID, version_id: UUID):
     if not response.data:
         raise HTTPException(status_code=404, detail="Version not found")
     return {"message": "Version activated", "version_id": str(version_id)}
-

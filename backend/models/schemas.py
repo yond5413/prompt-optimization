@@ -7,6 +7,7 @@ from uuid import UUID
 class PromptCreate(BaseModel):
     name: str
     task_type: str
+    content: Optional[str] = ""
     input_schema: Optional[Dict[str, Any]] = None
     output_schema: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -36,6 +37,7 @@ class PromptVersion(BaseModel):
 
 class Prompt(BaseModel):
     id: UUID
+    user_id: Optional[UUID] = None
     name: str
     task_type: str
     input_schema: Optional[Dict[str, Any]]
@@ -54,6 +56,8 @@ class DatasetCreate(BaseModel):
     output_format: Optional[Dict[str, Any]] = None
     evaluation_strategy: str = "exact_match"
     file_path: Optional[str] = None
+    source: str = "local"  # local, starter, huggingface
+    starter_id: Optional[str] = None
 
 
 class Dataset(BaseModel):

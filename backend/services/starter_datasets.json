@@ -1,0 +1,238 @@
+{
+  "support_email_3": {
+    "name": "Support Email Routing (3 Assignees)",
+    "description": "Route support emails to one of 3 assignees: Billing, Technical Support, or Product.",
+    "evaluation_strategy": "exact_match",
+    "samples": [
+      {
+        "input": {
+          "subject": "Double charge on credit card",
+          "body": "Hi, I noticed two charges for this month's subscription. Please refund one."
+        },
+        "expected_output": {
+          "assignee": "Billing",
+          "reason": "Payment dispute"
+        }
+      },
+      {
+        "input": {
+          "subject": "API returning 500 error",
+          "body": "My integration stopped working this morning. I keep getting 500 Internal Server Error."
+        },
+        "expected_output": {
+          "assignee": "Technical Support",
+          "reason": "Server error/API issue"
+        }
+      },
+      {
+        "input": {
+          "subject": "Dark mode feature request",
+          "body": "I love the app but my eyes hurt at night. When will you add dark mode?"
+        },
+        "expected_output": {
+          "assignee": "Product",
+          "reason": "Feature request"
+        }
+      },
+      {
+        "input": {
+          "subject": "Invoice missing address",
+          "body": "I need to update my billing address on the invoice for tax purposes."
+        },
+        "expected_output": {
+          "assignee": "Billing",
+          "reason": "Invoice correction"
+        }
+      },
+      {
+        "input": {
+          "subject": "Login button broken on Safari",
+          "body": "I click the login button and nothing happens. I'm using Safari on macOS."
+        },
+        "expected_output": {
+          "assignee": "Technical Support",
+          "reason": "Bug report"
+        }
+      }
+    ]
+  },
+  "support_email_10": {
+    "name": "Support Email Routing (10 Assignees)",
+    "description": "Route support emails to one of 10 specific departments.",
+    "evaluation_strategy": "exact_match",
+    "samples": [
+      {
+        "input": {
+          "subject": "Enterprise Plan Pricing",
+          "body": "We have 5000 users and want to discuss a custom contract."
+        },
+        "expected_output": {
+          "assignee": "Enterprise Sales"
+        }
+      },
+      {
+        "input": {
+          "subject": "GDPR Compliance Question",
+          "body": "Where is your data stored? We need to ensure GDPR compliance."
+        },
+        "expected_output": {
+          "assignee": "Legal"
+        }
+      },
+      {
+        "input": {
+          "subject": "Security Vulnerability Report",
+          "body": "I found a potential XSS vulnerability in your search bar."
+        },
+        "expected_output": {
+          "assignee": "Security"
+        }
+      },
+      {
+        "input": {
+          "subject": "Partnership Opportunity",
+          "body": "We would like to integrate your tool with our CRM platform."
+        },
+        "expected_output": {
+          "assignee": "Partnerships"
+        }
+      },
+      {
+        "input": {
+          "subject": "Job Application - Senior Dev",
+          "body": "Attached is my resume for the Senior Developer position."
+        },
+        "expected_output": {
+          "assignee": "HR"
+        }
+      }
+    ]
+  },
+  "multilingual_math": {
+    "name": "Multilingual Math",
+    "description": "Solve math problems presented in various languages.",
+    "evaluation_strategy": "exact_match",
+    "samples": [
+      {
+        "input": {
+          "problem": "What is 15 multiplied by 4?",
+          "language": "English"
+        },
+        "expected_output": {
+          "answer": "60"
+        }
+      },
+      {
+        "input": {
+          "problem": "Combien font 12 divisé par 4 ?",
+          "language": "French"
+        },
+        "expected_output": {
+          "answer": "3"
+        }
+      },
+      {
+        "input": {
+          "problem": "¿Cuál es la raíz cuadrada de 81?",
+          "language": "Spanish"
+        },
+        "expected_output": {
+          "answer": "9"
+        }
+      },
+      {
+        "input": {
+          "problem": "Was ist die Summe aus 25 und 17?",
+          "language": "German"
+        },
+        "expected_output": {
+          "answer": "42"
+        }
+      },
+      {
+        "input": {
+          "problem": "Quanto fa 100 meno 35?",
+          "language": "Italian"
+        },
+        "expected_output": {
+          "answer": "65"
+        }
+      }
+    ]
+  },
+  "email_assistant_simple": {
+    "name": "Email Assistant (Simple)",
+    "description": "Draft professional and clear emails for common business scenarios.",
+    "evaluation_strategy": "model_graded",
+    "samples": [
+      {
+        "input": {
+          "scenario": "Decline a meeting request from a vendor politely",
+          "recipient": "John Doe"
+        },
+        "expected_output": {
+          "tone": "Professional",
+          "key_elements": ["Thank you", "Not interested at this time", "Keep on file"]
+        }
+      },
+      {
+        "input": {
+          "scenario": "Ask a manager for a deadline extension on the Q3 report",
+          "recipient": "Sarah Smith"
+        },
+        "expected_output": {
+          "tone": "Professional",
+          "key_elements": ["Current status", "Reason for delay", "Proposed new deadline"]
+        }
+      },
+      {
+        "input": {
+          "scenario": "Welcome a new team member",
+          "recipient": "Alex Johnson"
+        },
+        "expected_output": {
+          "tone": "Warm/Welcoming",
+          "key_elements": ["Welcome", "Excited to work together", "First day details"]
+        }
+      }
+    ]
+  },
+  "email_assistant_eccentric": {
+    "name": "Email Assistant (Eccentric)",
+    "description": "Draft emails with unique personas (e.g., Pirate, Shakespearean).",
+    "evaluation_strategy": "model_graded",
+    "samples": [
+      {
+        "input": {
+          "scenario": "Remind team to fill out timesheets",
+          "persona": "Pirate Captain"
+        },
+        "expected_output": {
+          "style": "Pirate speak",
+          "key_elements": ["Ahoy", "Treasure/Gold (money)", "Walk the plank (consequence)"]
+        }
+      },
+      {
+        "input": {
+          "scenario": "Announce that the coffee machine is broken",
+          "persona": "Shakespearean Tragedian"
+        },
+        "expected_output": {
+          "style": "Shakespearean/Dramatic",
+          "key_elements": ["Thee/Thou", "Sorrow/Woe", "Tragedy"]
+        }
+      },
+      {
+        "input": {
+          "scenario": "Invite the office to a pizza party",
+          "persona": "Hyper-enthusiastic Gen Z"
+        },
+        "expected_output": {
+          "style": "Modern slang/Emojis",
+          "key_elements": ["No cap", "Vibe", "Pizza emoji"]
+        }
+      }
+    ]
+  }
+}
+

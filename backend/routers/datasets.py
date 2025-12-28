@@ -18,7 +18,14 @@ async def list_datasets():
 @router.post("", response_model=Dataset)
 async def create_dataset(dataset: DatasetCreate):
     """Create a new dataset"""
-    response = supabase.table("datasets").insert(dataset.model_dump()).execute()
+    if dataset.source == "starter" and dataset.starter_id:
+        try:
+            return await DatasetService.create_starter_dataset(dataset.starter_id)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    dataset_data = dataset.model_dump(exclude={"starter_id"})
+    response = supabase.table("datasets").insert(dataset_data).execute()
     if not response.data:
         raise HTTPException(status_code=500, detail="Failed to create dataset")
     return response.data[0]
@@ -85,4 +92,10 @@ async def upload_dataset_file(dataset_id: UUID, file: UploadFile = File(...)):
     
     supabase.table("datasets").update({"file_path": file_path}).eq("id", str(dataset_id)).execute()
     
-    return {"message": "File uploaded", "file_path": file_path}
+    # Process the file and extract samples
+    try:
+        await DatasetService.process_uploaded_file(str(dataset_id), content, file.filename)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+    
+    return {"message": "File uploaded and processed", "file_path": file_path}

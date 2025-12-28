@@ -3,17 +3,31 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PromptEditor from "@/components/PromptEditor";
+import { createPrompt } from "@/lib/api";
 
 export default function NewPromptPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [taskType, setTaskType] = useState("classification");
   const [content, setContent] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Call API to create prompt
-    router.push("/prompts");
+    setIsLoading(true);
+    try {
+      await createPrompt({
+        name,
+        task_type: taskType,
+        content,
+      });
+      router.push("/prompts");
+    } catch (error) {
+      console.error("Failed to create prompt:", error);
+      alert("Failed to create prompt. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -53,9 +67,10 @@ export default function NewPromptPage() {
         <div className="flex gap-4">
           <button
             type="submit"
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={isLoading}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            Create Prompt
+            {isLoading ? "Creating..." : "Create Prompt"}
           </button>
           <button
             type="button"
