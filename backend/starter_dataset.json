@@ -1,0 +1,59 @@
+{
+  "name": "Support Email Routing (3 Assignees)",
+  "description": "Route support emails to one of 3 assignees based on content",
+  "examples": [
+    {
+      "input": {
+        "email_subject": "Payment issue",
+        "email_body": "I was charged twice for my subscription. Please refund one of the charges."
+      },
+      "expected_output": {
+        "assignee": "billing",
+        "reason": "Payment/refund issue"
+      }
+    },
+    {
+      "input": {
+        "email_subject": "Feature request",
+        "email_body": "Can you add dark mode to the mobile app?"
+      },
+      "expected_output": {
+        "assignee": "product",
+        "reason": "Feature request"
+      }
+    },
+    {
+      "input": {
+        "email_subject": "Bug report",
+        "email_body": "The login button doesn't work on Safari browser"
+      },
+      "expected_output": {
+        "assignee": "engineering",
+        "reason": "Technical bug"
+      }
+    },
+    {
+      "input": {
+        "email_subject": "Account deletion",
+        "email_body": "I want to delete my account permanently"
+      },
+      "expected_output": {
+        "assignee": "billing",
+        "reason": "Account management"
+      }
+    },
+    {
+      "input": {
+        "email_subject": "API integration help",
+        "email_body": "How do I authenticate with your API?"
+      },
+      "expected_output": {
+        "assignee": "engineering",
+        "reason": "Technical question"
+      }
+    }
+  ],
+  "assignees": ["billing", "product", "engineering"]
+}
+
+
