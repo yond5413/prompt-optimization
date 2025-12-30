@@ -429,25 +429,46 @@ async def run_full_evaluation(
     output_schema: Optional[Dict[str, Any]],
     task_type: str,
     eval_strategy: str = "exact_match",
-    skip_expensive_metrics: bool = False
+    skip_expensive_metrics: bool = False,
+    variable_mapping: Optional[Dict[str, str]] = None
 ) -> Dict[str, Any]:
     """Run evaluation on a list of samples and aggregate results"""
     
     logger.info(f"Starting full evaluation: {len(samples)} samples, strategy={eval_strategy}")
+    if variable_mapping:
+        logger.info(f"Using variable mapping: {variable_mapping}")
     
     # Run evaluations (could add batching for large datasets)
-    tasks = [
-        evaluate_single_example(
-            prompt_template,
-            sample.get("input", {}),
-            sample.get("expected_output"),
-            output_schema,
-            task_type,
-            eval_strategy,
-            skip_expensive_metrics
+    tasks = []
+    for sample in samples:
+        # Apply variable mapping to transform dataset columns to prompt variables
+        sample_input = sample.get("input", {})
+        
+        if variable_mapping:
+            # Transform sample data using mapping
+            mapped_input_vars = {}
+            for prompt_var, dataset_col in variable_mapping.items():
+                if dataset_col in sample_input:
+                    mapped_input_vars[prompt_var] = sample_input[dataset_col]
+                else:
+                    logger.warning(f"Column '{dataset_col}' not found in sample data")
+            input_vars = mapped_input_vars
+        else:
+            # Use sample input as-is
+            input_vars = sample_input
+        
+        tasks.append(
+            evaluate_single_example(
+                prompt_template,
+                input_vars,
+                sample.get("expected_output"),
+                output_schema,
+                task_type,
+                eval_strategy,
+                skip_expensive_metrics
+            )
         )
-        for sample in samples
-    ]
+    
     
     results = await asyncio.gather(*tasks, return_exceptions=True)
     

@@ -82,6 +82,7 @@ class EvaluationRequest(BaseModel):
 class EvaluationCreate(BaseModel):
     prompt_version_id: UUID
     dataset_id: UUID
+    variable_mapping: Optional[Dict[str, str]] = None  # Maps prompt variables to dataset columns
 
 
 class EvaluationScore(BaseModel):
@@ -159,4 +160,18 @@ class RollbackRequest(BaseModel):
     prompt_id: UUID
     version_id: UUID
     reason: Optional[str] = "Manual rollback"
+
+
+class ManualDatasetCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    column_schema: Dict[str, Any]  # {"columns": {"col1": {"type": "text"}}, "order": ["col1"]}
+    
+
+class DatasetRowCreate(BaseModel):
+    rows: List[Dict[str, Any]]  # List of row data matching column schema
+
+
+class DatasetColumnUpdate(BaseModel):
+    column_schema: Dict[str, Any]
 

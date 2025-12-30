@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Body
 from uuid import UUID
+from typing import Dict, Any
 from db.supabase_client import supabase
 from models.schemas import ImprovementRequest, PromotionRequest, Candidate, RollbackRequest
-from services.improvement_loop import run_improvement_loop
+from services.improvement_loop import run_improvement_loop, generate_promotion_explanation
+import difflib
 
 router = APIRouter()
 
@@ -133,6 +135,17 @@ async def get_candidates(prompt_id: str):
     return candidates.data or []
 
 
+@router.get("/candidates/evaluation/{evaluation_id}")
+async def get_candidates_by_evaluation(evaluation_id: str):
+    """Get candidates generated for a specific evaluation"""
+    candidates = supabase.table("candidates")\
+        .select("*")\
+        .eq("evaluation_id", evaluation_id)\
+        .order("created_at", desc=True)\
+        .execute()
+    return candidates.data or []
+
+
 @router.get("/promotions/{prompt_id}")
 async def get_promotion_history(prompt_id: str):
     """Get promotion history for a prompt"""
@@ -142,4 +155,101 @@ async def get_promotion_history(prompt_id: str):
         .order("created_at", desc=True)\
         .execute()
     return promotions.data or []
+
+
+@router.get("/compare/{baseline_version_id}/{candidate_id}")
+async def compare_candidate_to_baseline(baseline_version_id: str, candidate_id: str):
+    """Compare a candidate to its baseline version with detailed metrics and diffs"""
+    
+    # Get baseline version
+    baseline_resp = supabase.table("prompt_versions")\
+        .select("*")\
+        .eq("id", baseline_version_id)\
+        .execute()
+    if not baseline_resp.data:
+        raise HTTPException(status_code=404, detail="Baseline version not found")
+    baseline = baseline_resp.data[0]
+    
+    # Get candidate
+    candidate_resp = supabase.table("candidates")\
+        .select("*")\
+        .eq("id", candidate_id)\
+        .execute()
+    if not candidate_resp.data:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    candidate = candidate_resp.data[0]
+    
+    # Generate text diff
+    baseline_lines = baseline["content"].splitlines()
+    candidate_lines = candidate["content"].splitlines()
+    diff = list(difflib.unified_diff(
+        baseline_lines,
+        candidate_lines,
+        fromfile="Baseline",
+        tofile="Candidate",
+        lineterm=""
+    ))
+    
+    # Calculate metric deltas
+    baseline_scores = {}
+    candidate_scores = candidate.get("evaluation_scores", {})
+    
+    # Try to get baseline evaluation scores
+    # Find most recent evaluation for this version
+    eval_resp = supabase.table("evaluations")\
+        .select("aggregate_scores")\
+        .eq("prompt_version_id", baseline_version_id)\
+        .order("created_at", desc=True)\
+        .limit(1)\
+        .execute()
+    
+    if eval_resp.data:
+        baseline_scores = eval_resp.data[0].get("aggregate_scores", {})
+    
+    metric_deltas = {}
+    if baseline_scores and candidate_scores:
+        for key in baseline_scores:
+            if key in candidate_scores:
+                metric_deltas[key] = candidate_scores[key] - baseline_scores[key]
+    
+    return {
+        "baseline": {
+            "id": baseline["id"],
+            "version": baseline["version"],
+            "content": baseline["content"],
+            "scores": baseline_scores
+        },
+        "candidate": {
+            "id": candidate["id"],
+            "content": candidate["content"],
+            "rationale": candidate.get("rationale"),
+            "scores": candidate_scores,
+            "status": candidate["status"]
+        },
+        "diff": diff,
+        "metric_deltas": metric_deltas
+    }
+
+
+@router.post("/explain")
+async def generate_explanation(
+    baseline_scores: Dict[str, float] = Body(...),
+    candidate_scores: Dict[str, float] = Body(...),
+    candidate_content: str = Body(...),
+    baseline_content: str = Body(...),
+    should_promote: bool = Body(...),
+    rejection_reason: str = Body(default="")
+):
+    """Generate LLM explanation for a promotion decision"""
+    
+    explanation = await generate_promotion_explanation(
+        baseline_scores=baseline_scores,
+        candidate_scores=candidate_scores,
+        candidate_content=candidate_content,
+        baseline_content=baseline_content,
+        should_promote=should_promote,
+        rejection_reason=rejection_reason
+    )
+    
+    return {"explanation": explanation}
 

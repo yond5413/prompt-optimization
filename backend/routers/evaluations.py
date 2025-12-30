@@ -1,11 +1,13 @@
 import logging
 import traceback
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from typing import List, Dict, Any
+import asyncio
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
+from typing import List, Dict, Any, Optional
 from uuid import UUID
 from db.supabase_client import supabase
 from models.schemas import Evaluation, EvaluationCreate
 from services.evaluation import run_full_evaluation
+from services.improvement_loop import run_improvement_loop
 import datetime
 
 logger = logging.getLogger(__name__)
@@ -71,6 +73,11 @@ async def run_eval_task(evaluation_id: str):
         eval_strategy = dataset.get("evaluation_strategy", "exact_match")
         logger.info(f"Using evaluation strategy: {eval_strategy}")
         
+        # Get variable mapping if present
+        variable_mapping = evaluation.get("variable_mapping")
+        if variable_mapping:
+            logger.info(f"Using variable mapping: {variable_mapping}")
+        
         # 4. Run evaluation
         logger.info(f"Starting evaluation of {len(samples)} samples...")
         results = await run_full_evaluation(
@@ -80,7 +87,8 @@ async def run_eval_task(evaluation_id: str):
             samples=samples,
             output_schema=prompt.get("output_schema"),
             task_type=prompt.get("task_type", "generation"),
-            eval_strategy=eval_strategy
+            eval_strategy=eval_strategy,
+            variable_mapping=variable_mapping
         )
         
         # 5. Store per-example results (even if some have errors)
@@ -172,8 +180,58 @@ def _update_evaluation_failed(evaluation_id: str, error_message: str):
         logger.error(f"Failed to update evaluation status: {str(update_err)}")
 
 
+async def run_improvement_after_eval(prompt_id: str, dataset_id: str, evaluation_id: str):
+    """Background task to run improvement loop after evaluation completes"""
+    logger.info(f"Starting auto-improvement for prompt {prompt_id} after evaluation {evaluation_id}")
+    
+    try:
+        # Wait for evaluation to complete (poll with timeout)
+        max_wait = 300  # 5 minutes
+        wait_interval = 5  # seconds
+        elapsed = 0
+        
+        while elapsed < max_wait:
+            eval_resp = supabase.table("evaluations").select("status").eq("id", evaluation_id).execute()
+            if eval_resp.data and eval_resp.data[0]["status"] in ["completed", "failed"]:
+                break
+            await asyncio.sleep(wait_interval)
+            elapsed += wait_interval
+        
+        # Check if evaluation succeeded
+        eval_resp = supabase.table("evaluations").select("status").eq("id", evaluation_id).execute()
+        if not eval_resp.data or eval_resp.data[0]["status"] != "completed":
+            logger.warning(f"Evaluation {evaluation_id} did not complete successfully, skipping auto-improvement")
+            return
+        
+        # Run improvement loop
+        result = await run_improvement_loop(
+            prompt_id=prompt_id,
+            dataset_id=dataset_id,
+            num_candidates=3,
+            auto_promote=False,  # Don't auto-promote, let user decide
+            method="meta_prompting"
+        )
+        
+        # Link candidates to evaluation
+        if result.get("all_candidates"):
+            for candidate in result["all_candidates"]:
+                supabase.table("candidates").update({
+                    "evaluation_id": evaluation_id
+                }).eq("id", candidate["id"]).execute()
+        
+        logger.info(f"Auto-improvement completed for evaluation {evaluation_id}, generated {result.get('candidates_evaluated', 0)} candidates")
+        
+    except Exception as e:
+        logger.error(f"Auto-improvement failed for evaluation {evaluation_id}: {str(e)}")
+        logger.error(traceback.format_exc())
+
+
 @router.post("", response_model=Evaluation)
-async def create_evaluation(evaluation: EvaluationCreate, background_tasks: BackgroundTasks):
+async def create_evaluation(
+    evaluation: EvaluationCreate, 
+    background_tasks: BackgroundTasks,
+    auto_improve: bool = Query(default=False, description="Automatically generate improvement candidates after evaluation")
+):
     """Start a new evaluation"""
     logger.info(f"Creating new evaluation for prompt_version={evaluation.prompt_version_id}, dataset={evaluation.dataset_id}")
     
@@ -191,6 +249,19 @@ async def create_evaluation(evaluation: EvaluationCreate, background_tasks: Back
     
     # Start background task
     background_tasks.add_task(run_eval_task, str(new_eval["id"]))
+    
+    # Optionally trigger improvement generation after evaluation
+    if auto_improve:
+        # Get prompt_id from version
+        pv_resp = supabase.table("prompt_versions").select("prompt_id").eq("id", str(evaluation.prompt_version_id)).execute()
+        if pv_resp.data:
+            prompt_id = pv_resp.data[0]["prompt_id"]
+            background_tasks.add_task(
+                run_improvement_after_eval,
+                str(prompt_id),
+                str(evaluation.dataset_id),
+                str(new_eval["id"])
+            )
     
     return new_eval
 

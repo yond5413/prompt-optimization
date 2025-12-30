@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Any
+from typing import List, Any, Dict
 from uuid import UUID
 from db.supabase_client import supabase
 from models.schemas import Prompt, PromptCreate, PromptVersion, PromptVersionCreate
 from dependencies import get_current_user
+from services.prompt_utils import extract_variables
 
 router = APIRouter()
 
@@ -24,6 +25,10 @@ async def create_prompt(prompt: PromptCreate, current_user: Any = Depends(get_cu
     
     # Set user_id from authenticated user for RLS policy
     prompt_data["user_id"] = current_user.id
+    
+    # Auto-detect variables from content
+    variables = extract_variables(content)
+    prompt_data["variables"] = variables
     
     response = supabase.table("prompts").insert(prompt_data).execute()
     if not response.data:
@@ -109,3 +114,43 @@ async def activate_version(prompt_id: UUID, version_id: UUID, current_user: Any 
     if not response.data:
         raise HTTPException(status_code=404, detail="Version not found")
     return {"message": "Version activated", "version_id": str(version_id)}
+
+
+@router.get("/{prompt_id}/variables")
+async def get_prompt_variables(prompt_id: UUID, current_user: Any = Depends(get_current_user)):
+    """Get variables detected in the active version of a prompt"""
+    # Get prompt to check ownership and get stored variables
+    prompt_response = supabase.table("prompts").select("*").eq("id", str(prompt_id)).execute()
+    if not prompt_response.data:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+    
+    prompt = prompt_response.data[0]
+    
+    # Also get the active version to detect variables from content
+    version_response = supabase.table("prompt_versions").select("content").eq("prompt_id", str(prompt_id)).eq("is_active", True).execute()
+    
+    detected_variables = []
+    if version_response.data:
+        detected_variables = extract_variables(version_response.data[0]["content"])
+    
+    return {
+        "prompt_id": str(prompt_id),
+        "stored_variables": prompt.get("variables", []),
+        "detected_variables": detected_variables
+    }
+
+
+@router.patch("/{prompt_id}/variables")
+async def update_prompt_variables(prompt_id: UUID, variables: List[str], current_user: Any = Depends(get_current_user)):
+    """Manually update the list of variables for a prompt"""
+    # Check ownership
+    prompt_response = supabase.table("prompts").select("id").eq("id", str(prompt_id)).execute()
+    if not prompt_response.data:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+    
+    # Update variables
+    response = supabase.table("prompts").update({"variables": variables}).eq("id", str(prompt_id)).execute()
+    if not response.data:
+        raise HTTPException(status_code=500, detail="Failed to update variables")
+    
+    return {"message": "Variables updated", "variables": variables}

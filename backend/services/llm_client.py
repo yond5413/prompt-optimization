@@ -17,11 +17,11 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Default model - use a valid free model
-DEFAULT_MODEL = "openai/gpt-oss-20b:free"
+DEFAULT_MODEL = "xiaomi/mimo-v2-flash:free"
 
 # Retry configuration
 MAX_RETRIES = 3
-INITIAL_BACKOFF = 1.0  # seconds
+INITIAL_BACKOFF = 5.0  # seconds
 MAX_BACKOFF = 30.0  # seconds
 
 
