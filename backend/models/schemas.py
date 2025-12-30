@@ -89,6 +89,7 @@ class EvaluationScore(BaseModel):
     format_adherence: float
     clarity: Optional[float] = None
     verbosity: Optional[float] = None
+    safety: Optional[float] = None
     consistency: Optional[float] = None
 
 
@@ -145,10 +146,17 @@ class ImprovementRequest(BaseModel):
     dataset_id: UUID
     num_candidates: int = 3
     auto_promote: bool = False
+    method: str = "meta_prompting"  # meta_prompting, cot, few_shot
 
 
 class PromotionRequest(BaseModel):
     prompt_id: UUID
     candidate_id: UUID
     reason: Optional[str] = None
+
+
+class RollbackRequest(BaseModel):
+    prompt_id: UUID
+    version_id: UUID
+    reason: Optional[str] = "Manual rollback"
 

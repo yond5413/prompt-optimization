@@ -77,12 +77,51 @@ class DatasetService:
             if i >= sample_limit:
                 break
             
-            # Basic mapping - this might need customization based on dataset
-            # For now, we'll store the whole thing in 'input'
+            # Smart mapping based on dataset type
+            input_data = {}
+            output_data = {}
+            metadata = {
+                "hf_split": split,
+                "hf_config": config_name,
+                "original_data": example if len(str(example)) < 1000 else "truncated" # store original for debugging if small
+            }
+
+            if "gsm8k" in repo_id.lower():
+                input_data = {"question": example.get("question")}
+                output_data = {"answer": example.get("answer")}
+            else:
+                # Generic fallback
+                # Try to identify input/output fields
+                potential_inputs = ["question", "input", "content", "text", "prompt", "context"]
+                potential_outputs = ["answer", "output", "target", "label", "completion", "response"]
+                
+                # Find first matching input field
+                for field in potential_inputs:
+                    if field in example:
+                        input_data = {field: example[field]}
+                        break
+                
+                # Find first matching output field
+                for field in potential_outputs:
+                    if field in example:
+                        output_data = {field: example[field]}
+                        break
+                
+                # If no clear input found, use everything except output
+                if not input_data:
+                    input_data = {k: v for k, v in example.items() if k not in output_data}
+            
+            # Ensure proper JSON structure
+            if not isinstance(input_data, dict):
+                input_data = {"text": str(input_data)}
+            if output_data and not isinstance(output_data, dict):
+                output_data = {"text": str(output_data)}
+            
             samples.append({
                 "dataset_id": dataset_id,
-                "input": example,
-                "expected_output": example.get("answer") or example.get("output") or example.get("label"),
+                "input": input_data,
+                "expected_output": output_data,
+                "metadata": metadata
             })
             count += 1
             

@@ -106,15 +106,7 @@ export default function PromptsPage() {
                     <span className="truncate">{prompt.name}</span>
                     <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100" />
                   </CardTitle>
-                  <CardDescription>
-                    {prompt.task_type} • Created {formatDistanceToNow(new Date(prompt.created_at))} ago
-                  </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground truncate">
-                    ID: {prompt.id}
-                  </div>
-                </CardContent>
               </Card>
             </Link>
           ))}

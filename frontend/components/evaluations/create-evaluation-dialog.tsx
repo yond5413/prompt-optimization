@@ -1,0 +1,200 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { fetchPrompts, fetchPromptVersions, fetchDatasets, createEvaluation } from "@/lib/api";
+import { Loader2 } from "lucide-react";
+
+interface CreateEvaluationDialogProps {
+  children: React.ReactNode;
+  onEvaluationCreated: () => void;
+}
+
+interface Prompt {
+  id: string;
+  name: string;
+  task_type: string;
+}
+
+interface PromptVersion {
+  id: string;
+  version: number;
+  is_active: boolean;
+  content: string;
+}
+
+interface Dataset {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export function CreateEvaluationDialog({ children, onEvaluationCreated }: CreateEvaluationDialogProps) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [versions, setVersions] = useState<PromptVersion[]>([]);
+  const [selectedPromptId, setSelectedPromptId] = useState<string>("");
+  const [selectedVersionId, setSelectedVersionId] = useState<string>("");
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string>("");
+  const [error, setError] = useState<string>("");
+
+  // Fetch prompts and datasets when dialog opens
+  useEffect(() => {
+    if (open) {
+      Promise.all([
+        fetchPrompts().catch(() => []),
+        fetchDatasets().catch(() => [])
+      ]).then(([promptsData, datasetsData]) => {
+        setPrompts(promptsData);
+        setDatasets(datasetsData);
+      });
+    }
+  }, [open]);
+
+  // Fetch versions when prompt is selected
+  useEffect(() => {
+    if (selectedPromptId) {
+      fetchPromptVersions(selectedPromptId)
+        .then(setVersions)
+        .catch(() => setVersions([]));
+    } else {
+      setVersions([]);
+      setSelectedVersionId("");
+    }
+  }, [selectedPromptId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedVersionId || !selectedDatasetId) {
+      setError("Please select both a prompt version and a dataset");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      await createEvaluation({
+        prompt_version_id: selectedVersionId,
+        dataset_id: selectedDatasetId
+      });
+      
+      setOpen(false);
+      setSelectedPromptId("");
+      setSelectedVersionId("");
+      setSelectedDatasetId("");
+      onEvaluationCreated();
+    } catch (err: any) {
+      setError(err.message || "Failed to create evaluation");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        {children}
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Start New Evaluation</DialogTitle>
+          <DialogDescription>
+            Select a prompt version and dataset to evaluate performance.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Prompt</label>
+            <Select
+              value={selectedPromptId}
+              onValueChange={setSelectedPromptId}
+              disabled={loading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a prompt" />
+              </SelectTrigger>
+              <SelectContent portal={false}>
+                {prompts.map((prompt) => (
+                  <SelectItem key={prompt.id} value={prompt.id}>
+                    {prompt.name} ({prompt.task_type})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedPromptId && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Version</label>
+              <Select
+                value={selectedVersionId}
+                onValueChange={setSelectedVersionId}
+                disabled={loading || !selectedPromptId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a version" />
+                </SelectTrigger>
+                <SelectContent portal={false}>
+                  {versions.map((version) => (
+                    <SelectItem key={version.id} value={version.id}>
+                      Version {version.version} {version.is_active && "(Active)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Dataset</label>
+            <Select
+              value={selectedDatasetId}
+              onValueChange={setSelectedDatasetId}
+              disabled={loading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a dataset" />
+              </SelectTrigger>
+              <SelectContent portal={false}>
+                {datasets.map((dataset) => (
+                  <SelectItem key={dataset.id} value={dataset.id}>
+                    {dataset.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {error && (
+            <div className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-2 rounded">
+              {error}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading || !selectedVersionId || !selectedDatasetId}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Start Evaluation
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+

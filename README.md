@@ -28,6 +28,22 @@ A self-improving prompt optimization platform that treats prompts like code: ver
 
 ### Backend Setup
 
+**Windows (PowerShell):**
+```powershell
+# Run the setup script
+.\setup-backend.ps1
+
+# Or manually:
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env  # If .env doesn't exist
+# Edit .env with your credentials
+uvicorn main:app --reload --port 8000
+```
+
+**Linux/Mac:**
 1. Navigate to backend directory:
 ```bash
 cd backend
@@ -36,7 +52,7 @@ cd backend
 2. Create virtual environment:
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
 ```
 
 3. Install dependencies:
@@ -69,6 +85,20 @@ uvicorn main:app --reload --port 8000
 
 ### Frontend Setup
 
+**Windows (PowerShell):**
+```powershell
+# Run the setup script
+.\setup-frontend.ps1
+
+# Or manually:
+cd frontend
+npm install
+Copy-Item .env.local.example .env.local  # If .env.local doesn't exist
+# Edit .env.local with your credentials
+npm run dev
+```
+
+**Linux/Mac:**
 1. Navigate to frontend directory:
 ```bash
 cd frontend

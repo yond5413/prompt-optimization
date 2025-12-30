@@ -15,6 +15,8 @@ interface EvaluationChartProps {
     format_adherence: number;
     clarity?: number;
     verbosity?: number;
+    safety?: number;
+    consistency?: number;
   };
 }
 
@@ -35,6 +37,14 @@ export default function EvaluationChart({ scores }: EvaluationChartProps) {
     {
       metric: "Verbosity",
       score: (scores.verbosity || 0) * 100,
+    },
+    {
+      metric: "Safety",
+      score: (scores.safety || 0) * 100,
+    },
+    {
+      metric: "Consistency",
+      score: (scores.consistency || 0) * 100,
     },
   ];
 

@@ -25,6 +25,12 @@ export async function fetchPrompts() {
   return response.json();
 }
 
+export async function fetchPrompt(id: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/prompts/${id}`);
+  if (!response.ok) throw new Error("Failed to fetch prompt");
+  return response.json();
+}
+
 export async function createPrompt(data: {
   name: string;
   task_type: string;
@@ -112,11 +118,18 @@ export async function fetchEvaluations() {
   return response.json();
 }
 
+export async function fetchEvaluation(id: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/evaluations/${id}`);
+  if (!response.ok) throw new Error("Failed to fetch evaluation");
+  return response.json();
+}
+
 export async function runImprovement(data: {
   prompt_id: string;
   dataset_id: string;
   num_candidates?: number;
   auto_promote?: boolean;
+  method?: string;
 }) {
   const response = await authFetch(`${API_BASE_URL}/api/improvements/improve`, {
     method: "POST",
@@ -139,8 +152,45 @@ export async function promoteCandidate(data: {
   return response.json();
 }
 
+export async function rollbackVersion(data: {
+  prompt_id: string;
+  version_id: string;
+  reason?: string;
+}) {
+  const response = await authFetch(`${API_BASE_URL}/api/improvements/rollback`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to rollback version");
+  return response.json();
+}
+
 export async function fetchStats() {
   const response = await authFetch(`${API_BASE_URL}/api/stats`);
   if (!response.ok) throw new Error("Failed to fetch stats");
+  return response.json();
+}
+
+export async function fetchCandidateStats() {
+  const response = await authFetch(`${API_BASE_URL}/api/stats/candidates`);
+  if (!response.ok) throw new Error("Failed to fetch candidate stats");
+  return response.json();
+}
+
+export async function fetchPromptPerformance(promptId: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/stats/prompt-performance/${promptId}`);
+  if (!response.ok) throw new Error("Failed to fetch prompt performance");
+  return response.json();
+}
+
+export async function fetchCandidates(promptId: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/improvements/candidates/${promptId}`);
+  if (!response.ok) throw new Error("Failed to fetch candidates");
+  return response.json();
+}
+
+export async function fetchPromotionHistory(promptId: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/improvements/promotions/${promptId}`);
+  if (!response.ok) throw new Error("Failed to fetch promotion history");
   return response.json();
 }

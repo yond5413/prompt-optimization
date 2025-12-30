@@ -341,7 +341,7 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
                       <SelectTrigger>
                         <SelectValue placeholder="Select config" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent portal={false}>
                         {hfConfigs.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -353,7 +353,7 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
                       <SelectTrigger>
                         <SelectValue placeholder="Select split" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent portal={false}>
                         {hfSplits.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
