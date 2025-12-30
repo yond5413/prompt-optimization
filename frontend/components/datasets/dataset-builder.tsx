@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, Edit2, Check, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +44,7 @@ export function DatasetBuilder({ initialColumns = [], initialRows = [], onChange
 
   const addColumn = () => {
     if (!newColumnName.trim()) return;
-    
+
     // Check for duplicate names
     if (columns.some(col => col.name === newColumnName.trim())) {
       alert("Column name already exists");
@@ -59,10 +60,10 @@ export function DatasetBuilder({ initialColumns = [], initialRows = [], onChange
       alert("Cannot remove required columns");
       return;
     }
-    
+
     const colName = columns[index].name;
     setColumns(columns.filter((_, i) => i !== index));
-    
+
     // Remove data from all rows for this column
     setRows(rows.map(row => ({
       ...row,
@@ -74,7 +75,7 @@ export function DatasetBuilder({ initialColumns = [], initialRows = [], onChange
 
   const renameColumn = (index: number, newName: string) => {
     if (!newName.trim()) return;
-    
+
     // Check for duplicate names
     if (columns.some((col, i) => i !== index && col.name === newName.trim())) {
       alert("Column name already exists");
@@ -104,12 +105,12 @@ export function DatasetBuilder({ initialColumns = [], initialRows = [], onChange
       id: `row-${Date.now()}-${Math.random()}`,
       data: {}
     };
-    
+
     // Initialize with empty values for all columns
     columns.forEach(col => {
       newRow.data[col.name] = "";
     });
-    
+
     setRows([...rows, newRow]);
   };
 
@@ -263,15 +264,18 @@ export function DatasetBuilder({ initialColumns = [], initialRows = [], onChange
                       {columns.map(col => (
                         <TableCell key={col.name} className="p-2">
                           {editingCell?.rowId === row.id && editingCell?.colName === col.name ? (
-                            <div className="flex gap-1">
-                              <Input
+                            <div className="flex gap-1 items-start w-full">
+                              <Textarea
                                 value={cellValue}
                                 onChange={(e) => setCellValue(e.target.value)}
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter") finishEditingCell();
+                                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                                    e.preventDefault();
+                                    finishEditingCell();
+                                  }
                                   if (e.key === "Escape") cancelEditingCell();
                                 }}
-                                className="h-8"
+                                className="min-h-[80px] text-sm leading-relaxed"
                                 autoFocus
                               />
                               <Button
@@ -293,8 +297,9 @@ export function DatasetBuilder({ initialColumns = [], initialRows = [], onChange
                             </div>
                           ) : (
                             <div
-                              className="cursor-pointer hover:bg-muted p-2 rounded min-h-[32px]"
+                              className="cursor-pointer hover:bg-muted p-2 rounded min-h-[32px] line-clamp-3 break-words"
                               onClick={() => startEditingCell(row.id, col.name)}
+                              title={row.data[col.name]} // Show full text on hover
                             >
                               {row.data[col.name] || <span className="text-muted-foreground italic">Click to edit</span>}
                             </div>

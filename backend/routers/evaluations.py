@@ -69,8 +69,8 @@ async def run_eval_task(evaluation_id: str):
         samples = samples_resp.data
         logger.info(f"Found {len(samples)} samples in dataset '{dataset['name']}'")
         
-        # Get evaluation strategy from dataset (default to exact_match)
-        eval_strategy = dataset.get("evaluation_strategy", "exact_match")
+        # Get evaluation strategy from evaluation record (fallback to dataset, then to exact_match)
+        eval_strategy = evaluation.get("evaluation_strategy") or dataset.get("evaluation_strategy", "exact_match")
         logger.info(f"Using evaluation strategy: {eval_strategy}")
         
         # Get variable mapping if present

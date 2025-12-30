@@ -11,7 +11,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with your credentials
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8001
 ```
 
 ### 2. Supabase Setup
@@ -40,19 +40,19 @@ npm run dev
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your_anon_key
 OPENROUTER_API_KEY=your_openrouter_key
-BACKEND_URL=http://localhost:8000
+BACKEND_URL=http://localhost:8001
 ```
 
 **Frontend (.env.local)**:
 ```
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8001
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 ```
 
 ## Testing the Setup
 
-1. Backend health check: `curl http://localhost:8000/api/health`
+1. Backend health check: `curl http://localhost:8001/api/health`
 2. Frontend: Open http://localhost:3000
 3. Create a prompt via the UI
 4. Upload a dataset

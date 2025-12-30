@@ -98,15 +98,30 @@ def score_correctness(expected: Any, actual: Any, strategy: str = "exact_match")
 
 
 async def score_correctness_llm(expected: Any, actual: Any, task_description: str) -> float:
-    """Use LLM to judge correctness"""
-    prompt = f"""You are evaluating a task output. Determine if the actual output is correct given the expected output.
+    """Use LLM to judge correctness with a clearer rubric"""
+    prompt = f"""You are an impartial judge evaluating the quality of an AI response.
+Your goal is to determine if the Actual Output correctly fulfills the requirements based on the Expected Output and Task Description.
 
-Task: {task_description}
+Task Description: {task_description}
 
-Expected output: {json.dumps(expected) if not isinstance(expected, str) else expected}
-Actual output: {json.dumps(actual) if not isinstance(actual, str) else actual}
+Expected Output:
+---
+{json.dumps(expected) if not isinstance(expected, str) else expected}
+---
 
-Respond with only a number between 0.0 and 1.0, where 1.0 means completely correct and 0.0 means completely incorrect. No other text."""
+Actual Output:
+---
+{json.dumps(actual) if not isinstance(actual, str) else actual}
+---
+
+Scoring Rubric:
+- 1.0: Perfect. The output is exactly what was expected or semantically equivalent.
+- 0.8: Mostly correct. Minor issues that don't affect the core goal.
+- 0.5: Halfway there. Correct idea but significantly flawed in execution.
+- 0.2: Mostly incorrect. Small trace of the correct answer but mostly wrong.
+- 0.0: Completely wrong, irrelevant, or failed to follow instructions.
+
+Respond with ONLY a number between 0.0 and 1.0. No preamble or explanation."""
     
     try:
         response = await call_llm(

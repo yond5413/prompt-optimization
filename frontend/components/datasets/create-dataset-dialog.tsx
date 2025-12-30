@@ -51,8 +51,8 @@ const STARTER_DATASETS = [
 export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatasetDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+
   // Upload state
   const [name, setName] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -71,6 +71,14 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
   const [manualDescription, setManualDescription] = useState("");
   const [manualColumns, setManualColumns] = useState<any[]>([]);
   const [manualRows, setManualRows] = useState<any[]>([]);
+  const [evalStrategy, setEvalStrategy] = useState<string>("exact_match");
+
+  const EVAL_STRATEGIES = [
+    { value: "exact_match", label: "Exact Match" },
+    { value: "numeric_match", label: "Numeric Match" },
+    { value: "llm_judge", label: "LLM Judge" },
+    { value: "contains", label: "Contains" }
+  ];
 
   // Helper to get auth headers
   const getAuthHeaders = async () => {
@@ -97,9 +105,9 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
           starter_id: starterId
         })
       });
-      
+
       if (!response.ok) throw new Error("Failed to create dataset");
-      
+
       setOpen(false);
       onDatasetCreated();
     } catch (error) {
@@ -117,17 +125,18 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      
+
       // 1. Create Dataset
       const createResponse = await fetch(`${apiUrl}/api/datasets`, {
         method: "POST",
         headers,
         body: JSON.stringify({
           name,
-          source: "local"
+          source: "local",
+          evaluation_strategy: evalStrategy
         })
       });
-      
+
       if (!createResponse.ok) throw new Error("Failed to create dataset");
       const dataset = await createResponse.json();
 
@@ -206,9 +215,9 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
         method: "POST",
         headers
       });
-      
+
       if (!response.ok) throw new Error("Import failed");
-      
+
       setOpen(false);
       onDatasetCreated();
     } catch (error) {
@@ -228,7 +237,7 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
     setLoading(true);
     try {
       const headers = await getAuthHeaders();
-      
+
       // Build column schema from columns
       const columnSchema = {
         columns: Object.fromEntries(
@@ -244,8 +253,9 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
         body: JSON.stringify({
           name: manualName,
           description: manualDescription,
-          column_schema: columnSchema
-        })
+          column_schema: columnSchema,
+          evaluation_strategy: evalStrategy
+        } as any)
       });
 
       if (!createResponse.ok) throw new Error("Failed to create dataset");
@@ -283,7 +293,7 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
             Choose a starter dataset, upload your own, or import from Hugging Face.
           </DialogDescription>
         </DialogHeader>
-        
+
         <Tabs defaultValue="starter" className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="starter">Starter Datasets</TabsTrigger>
@@ -291,12 +301,12 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
             <TabsTrigger value="manual">Manual Entry</TabsTrigger>
             <TabsTrigger value="hf">Hugging Face</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="starter" className="space-y-4 mt-4">
             <div className="grid gap-4 md:grid-cols-2">
               {STARTER_DATASETS.map((dataset) => (
-                <Card 
-                  key={dataset.id} 
+                <Card
+                  key={dataset.id}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => handleCreateStarter(dataset.id)}
                 >
@@ -313,32 +323,44 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
               ))}
             </div>
           </TabsContent>
-          
+
           <TabsContent value="upload">
             <form onSubmit={handleUpload} className="space-y-4 mt-4">
               <div className="space-y-2">
                 <label htmlFor="name" className="text-sm font-medium">Dataset Name</label>
-                <Input 
-                  id="name" 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)} 
-                  placeholder="My Custom Dataset" 
-                  required 
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="My Custom Dataset"
+                  required
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <label htmlFor="file" className="text-sm font-medium">File (CSV or JSONL)</label>
-                <Input 
-                  id="file" 
-                  type="file" 
-                  accept=".csv,.jsonl" 
-                  onChange={(e) => setFile(e.target.files?.[0] || null)} 
-                  required 
+                <Input
+                  id="file"
+                  type="file"
+                  accept=".csv,.jsonl"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  required
                 />
                 <p className="text-xs text-muted-foreground">
                   CSV must have header row. Supported columns: input, expected_output.
                 </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Evaluation Strategy</label>
+                <Select value={evalStrategy} onValueChange={setEvalStrategy}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select strategy" />
+                  </SelectTrigger>
+                  <SelectContent portal={false}>
+                    {EVAL_STRATEGIES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex justify-end">
@@ -372,6 +394,18 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
                 />
               </div>
 
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Default Evaluation Strategy</label>
+                <Select value={evalStrategy} onValueChange={setEvalStrategy}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select strategy" />
+                  </SelectTrigger>
+                  <SelectContent portal={false}>
+                    {EVAL_STRATEGIES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <DatasetBuilder
                 onChange={(columns, rows) => {
                   setManualColumns(columns);
@@ -391,8 +425,8 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
             {!selectedRepo ? (
               <div className="space-y-4">
                 <div className="flex gap-2">
-                  <Input 
-                    placeholder="Search datasets (e.g. squad, glue)" 
+                  <Input
+                    placeholder="Search datasets (e.g. squad, glue)"
                     value={hfQuery}
                     onChange={(e) => setHfQuery(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && searchHf()}
@@ -401,11 +435,11 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
                     <Search className="h-4 w-4" />
                   </Button>
                 </div>
-                
+
                 <ScrollArea className="h-[300px] border rounded-md p-2">
                   <div className="space-y-2">
                     {hfResults.map((repo) => (
-                      <div 
+                      <div
                         key={repo.id}
                         className="flex items-center justify-between p-2 hover:bg-muted rounded-md cursor-pointer border"
                         onClick={() => selectHfRepo(repo)}

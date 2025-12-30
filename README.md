@@ -40,7 +40,7 @@ python -m venv venv
 pip install -r requirements.txt
 Copy-Item .env.example .env  # If .env doesn't exist
 # Edit .env with your credentials
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8001
 ```
 
 **Linux/Mac:**
@@ -70,7 +70,7 @@ cp .env.example .env
 SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_anon_key
 OPENROUTER_API_KEY=your_openrouter_api_key
-BACKEND_URL=http://localhost:8000
+BACKEND_URL=http://localhost:8001
 ```
 
 6. Set up Supabase database:
@@ -80,7 +80,7 @@ BACKEND_URL=http://localhost:8000
 
 7. Run the backend:
 ```bash
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8001
 ```
 
 ### Frontend Setup
@@ -116,7 +116,7 @@ cp .env.local.example .env.local
 
 4. Fill in your environment variables:
 ```
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8001
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```

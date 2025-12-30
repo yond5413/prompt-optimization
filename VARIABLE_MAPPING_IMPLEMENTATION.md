@@ -360,11 +360,11 @@ psql -d your_database -c "SELECT column_name FROM information_schema.columns WHE
 ```bash
 # Check prompt variables
 curl -H "Authorization: Bearer TOKEN" \
-  http://localhost:8000/api/prompts/{id}/variables
+  http://localhost:8001/api/prompts/{id}/variables
 
 # Check dataset schema
 curl -H "Authorization: Bearer TOKEN" \
-  http://localhost:8000/api/datasets/{id}
+  http://localhost:8001/api/datasets/{id}
 
 # Check evaluation mapping
 psql -c "SELECT id, variable_mapping FROM evaluations WHERE id = '...';"

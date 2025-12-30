@@ -4,7 +4,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const { data: { session } } = await supabase.auth.getSession();
-  
+
   if (!session?.access_token) {
     throw new Error("Not authenticated. Please log in.");
   }
@@ -82,6 +82,18 @@ export async function activateVersion(promptId: string, versionId: string) {
 export async function fetchDatasets() {
   const response = await authFetch(`${API_BASE_URL}/api/datasets`);
   if (!response.ok) throw new Error("Failed to fetch datasets");
+  return response.json();
+}
+
+export async function fetchDataset(id: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/datasets/${id}`);
+  if (!response.ok) throw new Error("Failed to fetch dataset");
+  return response.json();
+}
+
+export async function fetchDatasetSamples(id: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/datasets/${id}/samples`);
+  if (!response.ok) throw new Error("Failed to fetch dataset samples");
   return response.json();
 }
 

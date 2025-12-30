@@ -83,6 +83,7 @@ class EvaluationCreate(BaseModel):
     prompt_version_id: UUID
     dataset_id: UUID
     variable_mapping: Optional[Dict[str, str]] = None  # Maps prompt variables to dataset columns
+    evaluation_strategy: Optional[str] = "exact_match"
 
 
 class EvaluationScore(BaseModel):
@@ -114,6 +115,7 @@ class Evaluation(BaseModel):
     dataset_id: UUID
     status: str
     aggregate_scores: Optional[Dict[str, float]]
+    evaluation_strategy: Optional[str]
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
 

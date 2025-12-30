@@ -200,7 +200,7 @@ This guide provides step-by-step instructions to test the new variable mapping a
 1. **GET /api/prompts/{id}/variables**
    ```bash
    curl -H "Authorization: Bearer TOKEN" \
-     http://localhost:8000/api/prompts/{id}/variables
+     http://localhost:8001/api/prompts/{id}/variables
    ```
    Expected: Returns detected and stored variables
 
@@ -209,7 +209,7 @@ This guide provides step-by-step instructions to test the new variable mapping a
    curl -X POST -H "Authorization: Bearer TOKEN" \
      -H "Content-Type: application/json" \
      -d '{"name":"Test","column_schema":{"columns":{"col1":{"type":"text"}},"order":["col1"]}}' \
-     http://localhost:8000/api/datasets/manual
+     http://localhost:8001/api/datasets/manual
    ```
    Expected: Creates dataset with custom schema
 
@@ -218,7 +218,7 @@ This guide provides step-by-step instructions to test the new variable mapping a
    curl -X POST -H "Authorization: Bearer TOKEN" \
      -H "Content-Type: application/json" \
      -d '{"rows":[{"col1":"value1"}]}' \
-     http://localhost:8000/api/datasets/{id}/rows
+     http://localhost:8001/api/datasets/{id}/rows
    ```
    Expected: Adds rows to dataset
 
@@ -227,7 +227,7 @@ This guide provides step-by-step instructions to test the new variable mapping a
    curl -X POST -H "Authorization: Bearer TOKEN" \
      -H "Content-Type: application/json" \
      -d '{"prompt_version_id":"...","dataset_id":"...","variable_mapping":{"var1":"col1"}}' \
-     http://localhost:8000/api/evaluations
+     http://localhost:8001/api/evaluations
    ```
    Expected: Creates evaluation with variable mapping
 
