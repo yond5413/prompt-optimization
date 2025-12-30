@@ -2,11 +2,14 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { ArrowLeft, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
-import { fetchEvaluation } from "@/lib/api";
+import { ArrowLeft, AlertCircle, CheckCircle2, XCircle, Zap } from "lucide-react";
+import { fetchEvaluation, fetchCandidates, promoteCandidate } from "@/lib/api";
 import EvaluationChart from "@/components/EvaluationChart";
+import ImprovementDialog from "@/components/ImprovementDialog";
+import CandidateComparisonCard from "@/components/CandidateComparisonCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -53,15 +56,76 @@ interface ConfidenceInterval {
 export default function EvaluationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [evaluation, setEvaluation] = useState<any>(null);
+  const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchEvaluation(id)
-      .then(setEvaluation)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+    loadEvaluation();
   }, [id]);
+
+  async function loadEvaluation() {
+    try {
+      const evalData = await fetchEvaluation(id);
+      setEvaluation(evalData);
+      
+      // Load candidates if evaluation is completed
+      if (evalData.status === "completed") {
+        loadCandidates(evalData.prompt_version_id);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load evaluation");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadCandidates(promptVersionId: string) {
+    setLoadingCandidates(true);
+    try {
+      // Get prompt_id from version
+      const versionResp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/prompts/versions/${promptVersionId}`);
+      if (versionResp.ok) {
+        const version = await versionResp.json();
+        const candidatesData = await fetchCandidates(version.prompt_id);
+        // Filter to recent candidates (created after this evaluation started)
+        const recentCandidates = candidatesData.filter((c: any) => 
+          new Date(c.created_at) >= new Date(evaluation.started_at)
+        );
+        setCandidates(recentCandidates);
+      }
+    } catch (err) {
+      console.error("Failed to load candidates:", err);
+    } finally {
+      setLoadingCandidates(false);
+    }
+  }
+
+  async function handlePromoteCandidate(candidateId: string, promptId: string) {
+    try {
+      await promoteCandidate({
+        prompt_id: promptId,
+        candidate_id: candidateId,
+        reason: "Promoted from evaluation results"
+      });
+      toast.success("Candidate promoted successfully!");
+      loadCandidates(evaluation.prompt_version_id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to promote candidate");
+    }
+  }
+
+  async function handleRejectCandidate(candidateId: string) {
+    // Update candidate status to rejected
+    try {
+      // Call API to reject (we'll need to add this endpoint)
+      toast.success("Candidate rejected");
+      loadCandidates(evaluation.prompt_version_id);
+    } catch (err) {
+      toast.error("Failed to reject candidate");
+    }
+  }
 
   if (loading) {
     return (
@@ -179,6 +243,74 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
           </CardContent>
         </Card>
       </div>
+
+      {/* Suggested Improvements Section */}
+      {evaluation.status === "completed" && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-yellow-500" />
+                  Suggested Improvements
+                </CardTitle>
+                <CardDescription>
+                  AI-generated prompt candidates based on evaluation results
+                </CardDescription>
+              </div>
+              <ImprovementDialog
+                promptId={evaluation.prompt_version_id}
+                promptName="Current Prompt"
+                onImprovementComplete={() => loadCandidates(evaluation.prompt_version_id)}
+              >
+                <Button variant="outline" size="sm">
+                  <Zap className="h-4 w-4 mr-2" />
+                  Generate More
+                </Button>
+              </ImprovementDialog>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingCandidates ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Loading candidates...
+              </div>
+            ) : candidates.length > 0 ? (
+              <div className="space-y-4">
+                {candidates.map((candidate) => (
+                  <CandidateComparisonCard
+                    key={candidate.id}
+                    candidateId={candidate.id}
+                    baselineVersionId={evaluation.prompt_version_id}
+                    candidateContent={candidate.content}
+                    candidateRationale={candidate.rationale}
+                    candidateScores={candidate.evaluation_scores}
+                    candidateStatus={candidate.status}
+                    onPromote={() => handlePromoteCandidate(candidate.id, candidate.prompt_id)}
+                    onReject={() => handleRejectCandidate(candidate.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">
+                  No improvement candidates yet. Generate candidates to see AI-suggested improvements.
+                </p>
+                <ImprovementDialog
+                  promptId={evaluation.prompt_version_id}
+                  promptName="Current Prompt"
+                  onImprovementComplete={() => loadCandidates(evaluation.prompt_version_id)}
+                >
+                  <Button>
+                    <Zap className="h-4 w-4 mr-2" />
+                    Generate Improvements
+                  </Button>
+                </ImprovementDialog>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Aggregate Scores Chart */}

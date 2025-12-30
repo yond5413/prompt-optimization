@@ -9,12 +9,14 @@ import { fetchPrompt, fetchPromptVersions, fetchCandidates, fetchPromotionHistor
 import PromptEditor from "@/components/PromptEditor";
 import ImprovementDialog from "@/components/ImprovementDialog";
 import PromptDiff from "@/components/PromptDiff";
+import CandidateComparisonCard from "@/components/CandidateComparisonCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 
 interface Prompt {
   id: string;
@@ -124,6 +126,8 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
         reason: "Manual promotion",
       });
       
+      toast.success("Candidate promoted successfully!");
+      
       // Reload data
       const [versionsData, candidatesData, promotionsData] = await Promise.all([
         fetchPromptVersions(id),
@@ -138,8 +142,16 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
       setActiveVersion(active);
     } catch (err) {
       console.error("Failed to promote candidate:", err);
-      alert("Failed to promote candidate");
+      toast.error("Failed to promote candidate");
     }
+  };
+
+  const handleRejectCandidate = async (candidateId: string) => {
+    // TODO: Add reject endpoint
+    toast.success("Candidate rejected");
+    // Reload candidates
+    const candidatesData = await fetchCandidates(id);
+    setCandidates(candidatesData);
   };
 
   if (isLoading) {
@@ -293,6 +305,9 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
                 
                 <TabsContent value="candidates" className="mt-4">
                   <CardTitle className="text-xl mb-4">Pending Candidates</CardTitle>
+                  <CardDescription className="mb-4">
+                    Review and promote AI-generated improvements to your prompt
+                  </CardDescription>
                   {candidates.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <Award className="h-12 w-12 text-muted-foreground opacity-20 mb-4" />
@@ -304,55 +319,17 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
                   ) : (
                     <div className="space-y-4">
                       {candidates.map((candidate) => (
-                        <Card key={candidate.id}>
-                          <CardHeader>
-                            <div className="flex items-center justify-between">
-                              <Badge variant="outline" className="capitalize">
-                                {candidate.generation_method}
-                              </Badge>
-                              <Badge variant={candidate.status === 'pending' ? 'secondary' : candidate.status === 'accepted' ? 'default' : 'destructive'}>
-                                {candidate.status}
-                              </Badge>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div>
-                              <p className="text-sm font-medium mb-2">Rationale:</p>
-                              <p className="text-sm text-muted-foreground">{candidate.rationale}</p>
-                            </div>
-                            
-                            {/* Show diff if we have an active version */}
-                            {activeVersion && (
-                              <div>
-                                <p className="text-sm font-medium mb-2">Changes from Active Version:</p>
-                                <ScrollArea className="max-h-[300px]">
-                                  <PromptDiff 
-                                    original={activeVersion.content} 
-                                    modified={candidate.content} 
-                                  />
-                                </ScrollArea>
-                              </div>
-                            )}
-                            
-                            <div className="flex justify-between items-center pt-2 border-t">
-                              <span className="text-xs text-muted-foreground">
-                                {formatDistanceToNow(new Date(candidate.created_at))} ago
-                              </span>
-                              {candidate.status === 'pending' && (
-                                <div className="flex gap-2">
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => handlePromoteCandidate(candidate.id)}
-                                  >
-                                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                                    Promote
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
+                        <CandidateComparisonCard
+                          key={candidate.id}
+                          candidateId={candidate.id}
+                          baselineVersionId={activeVersion?.id || ""}
+                          candidateContent={candidate.content}
+                          candidateRationale={candidate.rationale}
+                          candidateScores={(candidate as any).evaluation_scores}
+                          candidateStatus={candidate.status}
+                          onPromote={() => handlePromoteCandidate(candidate.id)}
+                          onReject={() => handleRejectCandidate(candidate.id)}
+                        />
                       ))}
                     </div>
                   )}

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchPrompts, fetchPromptVersions, fetchDatasets, createEvaluation } from "@/lib/api";
 import { Loader2 } from "lucide-react";
+import { VariableMappingDialog } from "./variable-mapping-dialog";
+import { extractVariables } from "@/components/prompts/variable-detector";
 
 interface CreateEvaluationDialogProps {
   children: React.ReactNode;
@@ -29,6 +31,10 @@ interface Dataset {
   id: string;
   name: string;
   description?: string;
+  column_schema?: {
+    columns: Record<string, any>;
+    order: string[];
+  };
 }
 
 export function CreateEvaluationDialog({ children, onEvaluationCreated }: CreateEvaluationDialogProps) {
@@ -41,6 +47,9 @@ export function CreateEvaluationDialog({ children, onEvaluationCreated }: Create
   const [selectedVersionId, setSelectedVersionId] = useState<string>("");
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [showMappingDialog, setShowMappingDialog] = useState(false);
+  const [variableMapping, setVariableMapping] = useState<Record<string, string>>({});
+  const [datasetSamples, setDatasetSamples] = useState<any[]>([]);
 
   // Fetch prompts and datasets when dialog opens
   useEffect(() => {
@@ -75,19 +84,53 @@ export function CreateEvaluationDialog({ children, onEvaluationCreated }: Create
       return;
     }
 
+    // Check if we need variable mapping
+    const selectedVersion = versions.find(v => v.id === selectedVersionId);
+    const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
+    
+    if (selectedVersion && selectedDataset) {
+      const promptVariables = extractVariables(selectedVersion.content);
+      const datasetColumns = selectedDataset.column_schema?.order || [];
+      
+      // If prompt has variables and dataset has custom columns, show mapping dialog
+      if (promptVariables.length > 0 && datasetColumns.length > 0) {
+        // Fetch dataset samples for preview
+        try {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          const response = await fetch(`${apiUrl}/api/datasets/${selectedDatasetId}/samples?limit=1`);
+          if (response.ok) {
+            const samples = await response.json();
+            setDatasetSamples(samples);
+          }
+        } catch (err) {
+          console.error("Failed to fetch dataset samples:", err);
+        }
+        
+        setShowMappingDialog(true);
+        return;
+      }
+    }
+
+    // No mapping needed, proceed directly
+    await submitEvaluation({});
+  };
+
+  const submitEvaluation = async (mapping: Record<string, string>) => {
     setLoading(true);
     setError("");
 
     try {
       await createEvaluation({
         prompt_version_id: selectedVersionId,
-        dataset_id: selectedDatasetId
+        dataset_id: selectedDatasetId,
+        variable_mapping: Object.keys(mapping).length > 0 ? mapping : undefined
       });
       
       setOpen(false);
       setSelectedPromptId("");
       setSelectedVersionId("");
       setSelectedDatasetId("");
+      setVariableMapping({});
       onEvaluationCreated();
     } catch (err: any) {
       setError(err.message || "Failed to create evaluation");
@@ -96,11 +139,17 @@ export function CreateEvaluationDialog({ children, onEvaluationCreated }: Create
     }
   };
 
+  const selectedVersion = versions.find(v => v.id === selectedVersionId);
+  const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
+  const promptVariables = selectedVersion ? extractVariables(selectedVersion.content) : [];
+  const datasetColumns = selectedDataset?.column_schema?.order || [];
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          {children}
+        </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Start New Evaluation</DialogTitle>
@@ -195,6 +244,20 @@ export function CreateEvaluationDialog({ children, onEvaluationCreated }: Create
         </form>
       </DialogContent>
     </Dialog>
+
+    <VariableMappingDialog
+      open={showMappingDialog}
+      onOpenChange={setShowMappingDialog}
+      promptVariables={promptVariables}
+      datasetColumns={datasetColumns}
+      sampleRow={datasetSamples.length > 0 ? datasetSamples[0].input : undefined}
+      onConfirm={(mapping) => {
+        setVariableMapping(mapping);
+        setShowMappingDialog(false);
+        submitEvaluation(mapping);
+      }}
+    />
+    </>
   );
 }
 

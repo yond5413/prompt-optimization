@@ -103,6 +103,7 @@ export async function createDataset(data: {
 export async function createEvaluation(data: {
   prompt_version_id: string;
   dataset_id: string;
+  variable_mapping?: Record<string, string>;
 }) {
   const response = await authFetch(`${API_BASE_URL}/api/evaluations`, {
     method: "POST",
@@ -192,5 +193,39 @@ export async function fetchCandidates(promptId: string) {
 export async function fetchPromotionHistory(promptId: string) {
   const response = await authFetch(`${API_BASE_URL}/api/improvements/promotions/${promptId}`);
   if (!response.ok) throw new Error("Failed to fetch promotion history");
+  return response.json();
+}
+
+export async function compareCandidate(baselineVersionId: string, candidateId: string) {
+  const response = await authFetch(
+    `${API_BASE_URL}/api/improvements/compare/${baselineVersionId}/${candidateId}`
+  );
+  if (!response.ok) throw new Error("Failed to compare candidate");
+  return response.json();
+}
+
+export async function generateExplanation(data: {
+  baseline_scores: Record<string, number>;
+  candidate_scores: Record<string, number>;
+  candidate_content: string;
+  baseline_content: string;
+  should_promote: boolean;
+  rejection_reason?: string;
+}) {
+  const response = await authFetch(`${API_BASE_URL}/api/improvements/explain`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to generate explanation");
+  return response.json();
+}
+
+export async function fetchEvaluationCandidates(evaluationId: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/improvements/candidates/evaluation/${evaluationId}`);
+  if (!response.ok) {
+    // If endpoint doesn't exist yet, return empty array
+    if (response.status === 404) return [];
+    throw new Error("Failed to fetch evaluation candidates");
+  }
   return response.json();
 }

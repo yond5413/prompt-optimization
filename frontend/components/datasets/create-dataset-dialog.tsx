@@ -4,10 +4,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Upload, FileText, Calculator, Mail, Search, Download } from "lucide-react";
+import { Upload, FileText, Calculator, Mail, Search, Download, Table } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/lib/supabase";
+import { DatasetBuilder } from "./dataset-builder";
 
 interface CreateDatasetDialogProps {
   children: React.ReactNode;
@@ -64,6 +65,12 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
   const [hfSplits, setHfSplits] = useState<string[]>([]);
   const [selectedConfig, setSelectedConfig] = useState<string>("");
   const [selectedSplit, setSelectedSplit] = useState<string>("");
+
+  // Manual dataset state
+  const [manualName, setManualName] = useState("");
+  const [manualDescription, setManualDescription] = useState("");
+  const [manualColumns, setManualColumns] = useState<any[]>([]);
+  const [manualRows, setManualRows] = useState<any[]>([]);
 
   // Helper to get auth headers
   const getAuthHeaders = async () => {
@@ -212,6 +219,58 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
     }
   };
 
+  const handleManualDatasetCreate = async () => {
+    if (!manualName.trim() || manualRows.length === 0) {
+      alert("Please provide a name and at least one row");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      
+      // Build column schema from columns
+      const columnSchema = {
+        columns: Object.fromEntries(
+          manualColumns.map(col => [col.name, { type: col.type || "text", required: col.required || false }])
+        ),
+        order: manualColumns.map(col => col.name)
+      };
+
+      // 1. Create dataset with column schema
+      const createResponse = await fetch(`${apiUrl}/api/datasets/manual`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: manualName,
+          description: manualDescription,
+          column_schema: columnSchema
+        })
+      });
+
+      if (!createResponse.ok) throw new Error("Failed to create dataset");
+      const dataset = await createResponse.json();
+
+      // 2. Add rows
+      const rowsToAdd = manualRows.map(row => row.data);
+      const addRowsResponse = await fetch(`${apiUrl}/api/datasets/${dataset.id}/rows`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ rows: rowsToAdd })
+      });
+
+      if (!addRowsResponse.ok) throw new Error("Failed to add rows");
+
+      setOpen(false);
+      onDatasetCreated();
+    } catch (error) {
+      console.error(error);
+      alert("Error creating manual dataset");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -226,9 +285,10 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
         </DialogHeader>
         
         <Tabs defaultValue="starter" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="starter">Starter Datasets</TabsTrigger>
             <TabsTrigger value="upload">Upload File</TabsTrigger>
+            <TabsTrigger value="manual">Manual Entry</TabsTrigger>
             <TabsTrigger value="hf">Hugging Face</TabsTrigger>
           </TabsList>
           
@@ -287,6 +347,44 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
                 </Button>
               </div>
             </form>
+          </TabsContent>
+
+          <TabsContent value="manual" className="space-y-4 mt-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="manual-name" className="text-sm font-medium">Dataset Name</label>
+                <Input
+                  id="manual-name"
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder="My Custom Dataset"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="manual-description" className="text-sm font-medium">Description (Optional)</label>
+                <Input
+                  id="manual-description"
+                  value={manualDescription}
+                  onChange={(e) => setManualDescription(e.target.value)}
+                  placeholder="Describe your dataset"
+                />
+              </div>
+
+              <DatasetBuilder
+                onChange={(columns, rows) => {
+                  setManualColumns(columns);
+                  setManualRows(rows);
+                }}
+              />
+
+              <div className="flex justify-end">
+                <Button onClick={handleManualDatasetCreate} disabled={loading}>
+                  {loading ? "Creating..." : "Create Dataset"}
+                </Button>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="hf" className="space-y-4 mt-4">
