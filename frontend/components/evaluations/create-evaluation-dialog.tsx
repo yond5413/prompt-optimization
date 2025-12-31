@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchPrompts, fetchPromptVersions, fetchDatasets, createEvaluation } from "@/lib/api";
-import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Loader2, FileText, Database, Zap, Hash, Search, Scale, ChevronRight } from "lucide-react";
 import { VariableMappingDialog } from "./variable-mapping-dialog";
 import { extractVariables } from "@/components/prompts/variable-detector";
 
@@ -189,10 +190,16 @@ export function CreateEvaluationDialog({ children, onEvaluationCreated }: Create
                 <SelectTrigger>
                   <SelectValue placeholder="Select a prompt" />
                 </SelectTrigger>
-                <SelectContent portal={false}>
+                <SelectContent>
                   {prompts.map((prompt) => (
                     <SelectItem key={prompt.id} value={prompt.id}>
-                      {prompt.name} ({prompt.task_type})
+                      <div className="flex items-center gap-2">
+                        <FileText className="size-4 text-blue-500" />
+                        <span className="font-medium">{prompt.name}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground ml-6">
+                        {prompt.task_type}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -210,10 +217,23 @@ export function CreateEvaluationDialog({ children, onEvaluationCreated }: Create
                   <SelectTrigger>
                     <SelectValue placeholder="Select a version" />
                   </SelectTrigger>
-                  <SelectContent portal={false}>
+                  <SelectContent>
                     {versions.map((version) => (
                       <SelectItem key={version.id} value={version.id}>
-                        Version {version.version} {version.is_active && "(Active)"}
+                        <div className="flex items-center gap-2">
+                          <Scale className="size-4 text-orange-500" />
+                          <span className="font-medium">Version {version.version}</span>
+                          {version.is_active && (
+                            <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold uppercase">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        {version.content && (
+                          <span className="text-xs text-muted-foreground ml-6 line-clamp-1 italic">
+                            {version.content.substring(0, 40)}...
+                          </span>
+                        )}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -231,10 +251,18 @@ export function CreateEvaluationDialog({ children, onEvaluationCreated }: Create
                 <SelectTrigger>
                   <SelectValue placeholder="Select a dataset" />
                 </SelectTrigger>
-                <SelectContent portal={false}>
+                <SelectContent>
                   {datasets.map((dataset) => (
                     <SelectItem key={dataset.id} value={dataset.id}>
-                      {dataset.name}
+                      <div className="flex items-center gap-2">
+                        <Database className="size-4 text-purple-500" />
+                        <span className="font-medium">{dataset.name}</span>
+                      </div>
+                      {dataset.description && (
+                        <span className="text-xs text-muted-foreground ml-6 line-clamp-1">
+                          {dataset.description}
+                        </span>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -251,12 +279,27 @@ export function CreateEvaluationDialog({ children, onEvaluationCreated }: Create
                 <SelectTrigger>
                   <SelectValue placeholder="Select strategy" />
                 </SelectTrigger>
-                <SelectContent portal={false}>
-                  {EVAL_STRATEGIES.map((strategy) => (
-                    <SelectItem key={strategy.value} value={strategy.value}>
-                      {strategy.label}
-                    </SelectItem>
-                  ))}
+                <SelectContent>
+                  {EVAL_STRATEGIES.map((strategy) => {
+                    const Icon =
+                      strategy.value === "llm_judge" ? Zap :
+                        strategy.value === "numeric_match" ? Hash :
+                          strategy.value === "contains" ? Search : FileText;
+
+                    const iconColor =
+                      strategy.value === "llm_judge" ? "text-yellow-500" :
+                        strategy.value === "numeric_match" ? "text-indigo-500" :
+                          strategy.value === "contains" ? "text-pink-500" : "text-slate-500";
+
+                    return (
+                      <SelectItem key={strategy.value} value={strategy.value}>
+                        <div className="flex items-center gap-2">
+                          <Icon className={cn("size-4", iconColor)} />
+                          <span className="font-medium">{strategy.label}</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">

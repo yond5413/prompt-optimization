@@ -63,7 +63,8 @@ async def call_llm(
     
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://prompt-optimization.local",
+        "HTTP-Referer": os.getenv("FRONTEND_URL", "https://prompt-optimization.local"),
+
         "X-Title": "Prompt Optimization Platform",
         "Content-Type": "application/json"
     }

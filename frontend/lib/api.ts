@@ -103,6 +103,66 @@ export async function fetchDatasetSamples(id: string) {
   return response.json();
 }
 
+export async function deleteDataset(id: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/datasets/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to delete dataset");
+  return response.json();
+}
+
+export async function updateDataset(id: string, data: {
+  name?: string;
+  description?: string;
+  evaluation_strategy?: string;
+}) {
+  const response = await authFetch(`${API_BASE_URL}/api/datasets/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to update dataset");
+  return response.json();
+}
+
+export async function deleteDatasetRow(datasetId: string, rowId: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/datasets/${datasetId}/rows/${rowId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to delete row");
+  return response.json();
+}
+
+export async function updateDatasetRow(datasetId: string, rowId: string, data: {
+  input?: any;
+  expected_output?: any;
+  metadata?: any;
+}) {
+  const response = await authFetch(`${API_BASE_URL}/api/datasets/${datasetId}/rows/${rowId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error("Failed to update row");
+  return response.json();
+}
+
+export async function addDatasetRows(datasetId: string, rows: any[]) {
+  const response = await authFetch(`${API_BASE_URL}/api/datasets/${datasetId}/rows`, {
+    method: "POST",
+    body: JSON.stringify({ rows }),
+  });
+  if (!response.ok) throw new Error("Failed to add rows");
+  return response.json();
+}
+
+export async function updateDatasetColumns(datasetId: string, columnSchema: any) {
+  const response = await authFetch(`${API_BASE_URL}/api/datasets/${datasetId}/columns`, {
+    method: "PUT",
+    body: JSON.stringify({ column_schema: columnSchema }),
+  });
+  if (!response.ok) throw new Error("Failed to update columns");
+  return response.json();
+}
+
 export async function createDataset(data: {
   name: string;
   description?: string;

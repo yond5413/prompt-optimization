@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Plus, Database } from "lucide-react";
+import { Plus, Database, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CreateDatasetDialog } from "@/components/datasets/create-dataset-dialog";
 import { useEffect, useState } from "react";
@@ -20,7 +20,7 @@ export default function DatasetsPage() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
-  
+
   const fetchDatasets = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -40,6 +40,36 @@ export default function DatasetsPage() {
     }
   };
 
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!confirm("Are you sure you want to delete this dataset? This will also delete all associated samples and storage files.")) {
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${apiUrl}/api/datasets/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${session?.access_token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (res.ok) {
+        setDatasets(datasets.filter(d => d.id !== id));
+      } else {
+        const error = await res.json();
+        alert(`Failed to delete dataset: ${error.detail || "Unknown error"}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred while deleting the dataset.");
+    }
+  };
+
   useEffect(() => {
     fetchDatasets();
   }, []);
@@ -54,11 +84,11 @@ export default function DatasetsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-            <CreateDatasetDialog onDatasetCreated={fetchDatasets}>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" /> Add Dataset
-              </Button>
-            </CreateDatasetDialog>
+          <CreateDatasetDialog onDatasetCreated={fetchDatasets}>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> Add Dataset
+            </Button>
+          </CreateDatasetDialog>
         </div>
       </div>
 
@@ -83,24 +113,34 @@ export default function DatasetsPage() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {datasets.map((dataset) => (
-                <Link href={`/datasets/${dataset.id}`} key={dataset.id}>
-                    <Card className="cursor-pointer hover:bg-muted/50 transition-colors h-full">
-                        <CardHeader>
-                            <CardTitle>{dataset.name}</CardTitle>
-                            <CardDescription className="line-clamp-2">{dataset.description || "No description"}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-xs text-muted-foreground">
-                                Source: {dataset.source}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                                Created: {new Date(dataset.created_at).toLocaleDateString()}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </Link>
-            ))}
+          {datasets.map((dataset) => (
+            <Link href={`/datasets/${dataset.id}`} key={dataset.id}>
+              <Card className="cursor-pointer hover:bg-muted/50 transition-colors h-full">
+                <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                  <div className="space-y-1">
+                    <CardTitle>{dataset.name}</CardTitle>
+                    <CardDescription className="line-clamp-2">{dataset.description || "No description"}</CardDescription>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={(e) => handleDelete(e, dataset.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xs text-muted-foreground">
+                    Source: {dataset.source}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Created: {new Date(dataset.created_at).toLocaleDateString()}
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
         </div>
       )}
     </div>

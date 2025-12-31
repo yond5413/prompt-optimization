@@ -1,4 +1,6 @@
+import os
 from fastapi import FastAPI, Depends, HTTPException, Header, Request
+
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -16,7 +18,9 @@ logger.info("Backend server starting...")
 app = FastAPI(title="Prompt Optimization API")
 
 # Configure CORS
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 origins = [
+    frontend_url,
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]

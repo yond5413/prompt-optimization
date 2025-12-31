@@ -173,9 +173,21 @@ class ManualDatasetCreate(BaseModel):
     
 
 class DatasetRowCreate(BaseModel):
-    rows: List[Dict[str, Any]]  # List of row data matching column schema
+    rows: List[Any]  # List of row data (either flat or with {input, expected_output})
 
 
 class DatasetColumnUpdate(BaseModel):
     column_schema: Dict[str, Any]
+
+
+class DatasetUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    evaluation_strategy: Optional[str] = None
+
+
+class DatasetRowUpdate(BaseModel):
+    input: Optional[Any] = None
+    expected_output: Optional[Any] = None
+    metadata: Optional[Dict[str, Any]] = None
 

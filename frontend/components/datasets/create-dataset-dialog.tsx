@@ -357,7 +357,7 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
                   <SelectTrigger>
                     <SelectValue placeholder="Select strategy" />
                   </SelectTrigger>
-                  <SelectContent portal={false}>
+                  <SelectContent>
                     {EVAL_STRATEGIES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -400,7 +400,7 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
                   <SelectTrigger>
                     <SelectValue placeholder="Select strategy" />
                   </SelectTrigger>
-                  <SelectContent portal={false}>
+                  <SelectContent>
                     {EVAL_STRATEGIES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -473,7 +473,7 @@ export function CreateDatasetDialog({ children, onDatasetCreated }: CreateDatase
                       <SelectTrigger>
                         <SelectValue placeholder="Select config" />
                       </SelectTrigger>
-                      <SelectContent portal={false}>
+                      <SelectContent>
                         {hfConfigs.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                       </SelectContent>
                     </Select>

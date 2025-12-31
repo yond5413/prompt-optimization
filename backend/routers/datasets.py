@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Depends
 from typing import List, Optional, Any
 from uuid import UUID
 from db.supabase_client import supabase
-from models.schemas import Dataset, DatasetCreate, ManualDatasetCreate, DatasetRowCreate, DatasetColumnUpdate
+from models.schemas import Dataset, DatasetCreate, ManualDatasetCreate, DatasetRowCreate, DatasetColumnUpdate, DatasetUpdate, DatasetRowUpdate
 from services.datasets import DatasetService
 from dependencies import get_current_user
 
@@ -172,12 +172,22 @@ async def add_dataset_rows(
     # Insert rows as dataset samples
     samples_to_insert = []
     for row in row_data.rows:
-        sample = {
-            "dataset_id": str(dataset_id),
-            "input": row,  # Store entire row in input field
-            "expected_output": row.get("expected_output"),  # If present
-            "metadata": {}
-        }
+        if isinstance(row, dict) and "input" in row:
+            # Row is already structured: {input: ..., expected_output: ..., metadata: ...}
+            sample = {
+                "dataset_id": str(dataset_id),
+                "input": row["input"],
+                "expected_output": row.get("expected_output"),
+                "metadata": row.get("metadata", {})
+            }
+        else:
+            # Row is a flat dict or other type
+            sample = {
+                "dataset_id": str(dataset_id),
+                "input": row,
+                "expected_output": row.get("expected_output") if isinstance(row, dict) else None,
+                "metadata": {}
+            }
         samples_to_insert.append(sample)
     
     if samples_to_insert:
@@ -186,6 +196,48 @@ async def add_dataset_rows(
             raise HTTPException(status_code=500, detail="Failed to insert rows")
     
     return {"message": f"{len(samples_to_insert)} rows added"}
+
+
+@router.patch("/{dataset_id}", response_model=Dataset)
+async def update_dataset(dataset_id: UUID, dataset_update: DatasetUpdate, current_user: Any = Depends(get_current_user)):
+    """Update a specific dataset's metadata"""
+    update_data = dataset_update.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No update data provided")
+        
+    response = supabase.table("datasets").update(update_data).eq("id", str(dataset_id)).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+        
+    return response.data[0]
+
+
+@router.delete("/{dataset_id}")
+async def delete_dataset(dataset_id: UUID, current_user: Any = Depends(get_current_user)):
+    """Delete a specific dataset and its associated file in storage"""
+    # 1. Get dataset info to check for file_path
+    response = supabase.table("datasets").select("*").eq("id", str(dataset_id)).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    
+    dataset = response.data[0]
+    file_path = dataset.get("file_path")
+    
+    # 2. Delete from storage if file_path exists
+    if file_path:
+        try:
+            supabase.storage.from_("datasets").remove([file_path])
+        except Exception as e:
+            print(f"Failed to delete file from storage: {e}")
+            # Continue with DB deletion even if storage deletion fails
+    
+    # 3. Delete from database (cascading delete should handle dataset_samples)
+    delete_response = supabase.table("datasets").delete().eq("id", str(dataset_id)).execute()
+    
+    if not delete_response.data:
+        raise HTTPException(status_code=500, detail="Failed to delete dataset from database")
+    
+    return {"message": "Dataset deleted successfully", "id": str(dataset_id)}
 
 
 @router.delete("/{dataset_id}/rows/{row_id}")
@@ -204,3 +256,28 @@ async def delete_dataset_row(
     response = supabase.table("dataset_samples").delete().eq("id", str(row_id)).eq("dataset_id", str(dataset_id)).execute()
     
     return {"message": "Row deleted", "row_id": str(row_id)}
+
+
+@router.patch("/{dataset_id}/rows/{row_id}")
+async def update_dataset_row(
+    dataset_id: UUID,
+    row_id: UUID,
+    row_update: DatasetRowUpdate,
+    current_user: Any = Depends(get_current_user)
+):
+    """Update a specific row in a dataset"""
+    # Check ownership
+    dataset_response = supabase.table("datasets").select("id").eq("id", str(dataset_id)).execute()
+    if not dataset_response.data:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    
+    update_data = row_update.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No update data provided")
+    
+    response = supabase.table("dataset_samples").update(update_data).eq("id", str(row_id)).eq("dataset_id", str(dataset_id)).execute()
+    
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Row not found")
+    
+    return response.data[0]
