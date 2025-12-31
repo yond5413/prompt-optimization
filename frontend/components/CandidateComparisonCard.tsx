@@ -12,6 +12,7 @@ import PromptDiff from "./PromptDiff";
 interface CandidateComparisonCardProps {
   candidateId: string;
   baselineVersionId: string;
+  baselineContent?: string;
   candidateContent?: string;
   candidateRationale?: string;
   candidateScores?: Record<string, number>;
@@ -41,7 +42,7 @@ interface ComparisonData {
 function MetricDelta({ metric, delta }: { metric: string; delta: number }) {
   const isPositive = delta > 0;
   const isNeutral = Math.abs(delta) < 0.001;
-  
+
   return (
     <div className="flex items-center justify-between py-2 border-b last:border-0">
       <span className="text-sm font-medium capitalize">{metric.replace("_", " ")}</span>
@@ -77,6 +78,7 @@ export default function CandidateComparisonCard({
   candidateStatus,
   onPromote,
   onReject,
+  baselineContent,
 }: CandidateComparisonCardProps) {
   const [comparison, setComparison] = useState<ComparisonData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -127,7 +129,7 @@ export default function CandidateComparisonCard({
           <div className="flex flex-wrap gap-2">
             {Object.entries(scores).map(([key, value]) => (
               <Badge key={key} variant="outline">
-                {key.replace("_", " ")}: {(value * 100).toFixed(0)}%
+                {key.replace("_", " ")}: {((value as number) * 100).toFixed(0)}%
               </Badge>
             ))}
           </div>
@@ -219,8 +221,8 @@ export default function CandidateComparisonCard({
 
                 <TabsContent value="diff">
                   <PromptDiff
-                    oldContent={comparison.baseline.content}
-                    newContent={comparison.candidate.content}
+                    original={baselineContent || comparison?.baseline.content || ""}
+                    modified={candidateContent || comparison?.candidate.content || ""}
                   />
                 </TabsContent>
               </Tabs>

@@ -81,15 +81,24 @@ async def run_improvement_loop(
     dataset_id: str,
     num_candidates: int = 3,
     auto_promote: bool = False,
-    method: str = "meta_prompting"
+    method: str = "meta_prompting",
+    evaluation_strategy: Optional[str] = None,
+    base_version_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """Run the full self-improvement loop with PRD guardrails"""
     
-    # 1. Get active prompt version
-    pv_resp = supabase.table("prompt_versions").select("*").eq("prompt_id", prompt_id).eq("is_active", True).execute()
-    if not pv_resp.data:
-        raise ValueError("No active version found for prompt")
-    active_version = pv_resp.data[0]
+    # 1. Get base prompt version to improve from
+    if base_version_id:
+        pv_resp = supabase.table("prompt_versions").select("*").eq("id", base_version_id).execute()
+        if not pv_resp.data:
+            raise ValueError(f"Prompt version {base_version_id} not found")
+        base_version = pv_resp.data[0]
+    else:
+        pv_resp = supabase.table("prompt_versions").select("*").eq("prompt_id", prompt_id).eq("is_active", True).execute()
+        if not pv_resp.data:
+            raise ValueError("No active version found for prompt")
+        base_version = pv_resp.data[0]
+    
     
     # 2. Get prompt details
     p_resp = supabase.table("prompts").select("*").eq("id", prompt_id).execute()
@@ -97,28 +106,41 @@ async def run_improvement_loop(
         raise ValueError("Prompt not found")
     prompt = p_resp.data[0]
     
-    # 3. Get dataset samples
+    # 3. Get dataset details
+    d_resp = supabase.table("datasets").select("*").eq("id", dataset_id).execute()
+    if not d_resp.data:
+        raise ValueError("Dataset not found")
+    dataset = d_resp.data[0]
+    
+    # Use dataset's default eval strategy if not overridden
+    if not evaluation_strategy:
+        evaluation_strategy = dataset.get("evaluation_strategy", "exact_match")
+    
+    print(f"Using evaluation strategy: {evaluation_strategy}")
+    
+    # 4. Get dataset samples
     s_resp = supabase.table("dataset_samples").select("*").eq("dataset_id", dataset_id).execute()
     if not s_resp.data:
         raise ValueError("Dataset has no samples")
     samples = s_resp.data
     
-    # 4. Baseline evaluation
+    # 5. Baseline evaluation
     print(f"Running baseline evaluation for prompt {prompt_id}...")
     baseline_results = await run_full_evaluation(
-        prompt_version_id=active_version["id"],
+        prompt_version_id=base_version["id"],
         dataset_id=dataset_id,
-        prompt_template=active_version["content"],
+        prompt_template=base_version["content"],
         samples=samples,
         output_schema=prompt["output_schema"],
-        task_type=prompt["task_type"]
+        task_type=prompt["task_type"],
+        eval_strategy=evaluation_strategy or "exact_match"
     )
     baseline_scores = baseline_results["aggregate_scores"]
     
-    # 5. Generate candidates
+    # 6. Generate candidates
     print(f"Generating {num_candidates} candidates using {method}...")
     candidates_data = await generate_candidates(
-        prompt_content=active_version["content"],
+        prompt_content=base_version["content"],
         task_type=prompt["task_type"],
         method=method,
         num_candidates=num_candidates,
@@ -126,7 +148,7 @@ async def run_improvement_loop(
         dataset_samples=samples
     )
     
-    # 6. Evaluate candidates and store them in DB
+    # 7. Evaluate candidates and store them in DB
     candidate_results = []
     stored_candidates = []
     
@@ -138,7 +160,8 @@ async def run_improvement_loop(
             prompt_template=content,
             samples=samples,
             output_schema=prompt["output_schema"],
-            task_type=prompt["task_type"]
+            task_type=prompt["task_type"],
+            eval_strategy=evaluation_strategy or "exact_match"
         )
         
         candidate_data = {
@@ -152,7 +175,7 @@ async def run_improvement_loop(
         # Store candidate in database immediately
         cand_db = {
             "prompt_id": prompt_id,
-            "parent_version_id": active_version["id"],
+            "parent_version_id": base_version["id"],
             "content": content,
             "generation_method": method,
             "rationale": rationale,
@@ -164,7 +187,7 @@ async def run_improvement_loop(
             candidate_data["candidate_id"] = cand_resp.data[0]["id"]
             stored_candidates.append(cand_resp.data[0])
         
-    # 7. Compare and find the best candidate
+    # 8. Compare and find the best candidate
     best_candidate = None
     best_improvement = -1.0 # Initialize with a low value
     
@@ -182,7 +205,7 @@ async def run_improvement_loop(
             best_improvement = improvement
             best_candidate = candidate
             
-    # 8. Check PRD Promotion Guardrails
+    # 9. Check PRD Promotion Guardrails
     should_promote = False
     rejection_reason = ""
     
@@ -203,19 +226,19 @@ async def run_improvement_loop(
         else:
             should_promote = True
             
-    # 9. Generate explanation for best candidate
+    # 10. Generate explanation for best candidate
     explanation = ""
     if best_candidate:
         explanation = await generate_promotion_explanation(
             baseline_scores=baseline_scores,
             candidate_scores=best_candidate["scores"],
             candidate_content=best_candidate["content"],
-            baseline_content=active_version["content"],
+            baseline_content=base_version["content"],
             should_promote=should_promote,
             rejection_reason=rejection_reason
         )
     
-    # 10. Log results and handle promotion
+    # 11. Log results and handle promotion
     result = {
         "baseline_scores": baseline_scores,
         "best_candidate": best_candidate,
@@ -239,9 +262,9 @@ async def run_improvement_loop(
             # Create new version
             new_v_resp = supabase.table("prompt_versions").insert({
                 "prompt_id": prompt_id,
-                "version": active_version["version"] + 1,
+                "version": base_version["version"] + 1,
                 "content": best_candidate["content"],
-                "parent_version_id": active_version["id"],
+                "parent_version_id": base_version["id"],
                 "generation_method": method,
                 "rationale": best_candidate["rationale"],
                 "is_active": True
@@ -249,12 +272,17 @@ async def run_improvement_loop(
             
             if new_v_resp.data:
                 # Deactivate old version
-                supabase.table("prompt_versions").update({"is_active": False}).eq("id", active_version["id"]).execute()
+                # If we're promoting, we should deactivate the PREVIOUS ACTIVE version, 
+                # but which one is that? Let's just deactivate all for this prompt to be safe.
+                supabase.table("prompt_versions").update({"is_active": False}).eq("prompt_id", prompt_id).execute()
                 
+                # Activate new version
+                supabase.table("prompt_versions").update({"is_active": True}).eq("id", new_v_resp.data[0]["id"]).execute()
+
                 # Log promotion history with explanation
                 supabase.table("promotion_history").insert({
                     "prompt_id": prompt_id,
-                    "from_version_id": active_version["id"],
+                    "from_version_id": base_version["id"],
                     "to_version_id": new_v_resp.data[0]["id"],
                     "reason": explanation or f"Auto-promoted: {best_candidate['rationale']}",
                     "metric_deltas": {k: best_candidate["scores"][k] - baseline_scores[k] for k in baseline_scores},

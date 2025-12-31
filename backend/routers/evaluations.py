@@ -19,10 +19,16 @@ router = APIRouter()
 async def list_evaluations():
     """List all evaluations"""
     response = supabase.table("evaluations").select("*").order("started_at", desc=True).execute()
+    
+    # Add default evaluation_strategy for legacy records
+    for evaluation in response.data:
+        if "evaluation_strategy" not in evaluation or evaluation["evaluation_strategy"] is None:
+            evaluation["evaluation_strategy"] = "exact_match"
+    
     return response.data
 
 
-async def run_eval_task(evaluation_id: str):
+async def run_eval_task(evaluation_id: str, strategy_override: Optional[str] = None):
     """Background task to run evaluation with comprehensive logging"""
     logger.info(f"Starting evaluation task for {evaluation_id}")
     error_message = None
@@ -69,8 +75,8 @@ async def run_eval_task(evaluation_id: str):
         samples = samples_resp.data
         logger.info(f"Found {len(samples)} samples in dataset '{dataset['name']}'")
         
-        # Get evaluation strategy from evaluation record (fallback to dataset, then to exact_match)
-        eval_strategy = evaluation.get("evaluation_strategy") or dataset.get("evaluation_strategy", "exact_match")
+        # Get evaluation strategy from override, evaluation record, or dataset (default to exact_match)
+        eval_strategy = strategy_override or evaluation.get("evaluation_strategy") or dataset.get("evaluation_strategy", "exact_match")
         logger.info(f"Using evaluation strategy: {eval_strategy}")
         
         # Get variable mapping if present
@@ -237,6 +243,10 @@ async def create_evaluation(
     
     # Create evaluation record
     eval_data = evaluation.model_dump(mode='json')
+    
+    # Extract strategy override since column doesn't exist in DB yet
+    strategy_override = eval_data.pop("evaluation_strategy", None)
+    
     eval_data["status"] = "running"
     eval_data["started_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     
@@ -247,8 +257,8 @@ async def create_evaluation(
     new_eval = response.data[0]
     logger.info(f"Created evaluation {new_eval['id']}, starting background task")
     
-    # Start background task
-    background_tasks.add_task(run_eval_task, str(new_eval["id"]))
+    # Start background task with strategy override
+    background_tasks.add_task(run_eval_task, str(new_eval["id"]), strategy_override)
     
     # Optionally trigger improvement generation after evaluation
     if auto_improve:
@@ -273,10 +283,16 @@ async def get_evaluation(evaluation_id: UUID):
     if not eval_resp.data:
         raise HTTPException(status_code=404, detail="Evaluation not found")
     
+    evaluation = eval_resp.data[0]
+    
+    # Add default evaluation_strategy for legacy records
+    if "evaluation_strategy" not in evaluation or evaluation["evaluation_strategy"] is None:
+        evaluation["evaluation_strategy"] = "exact_match"
+    
     results_resp = supabase.table("evaluation_results").select("*").eq("evaluation_id", str(evaluation_id)).order("example_index").execute()
     
     return {
-        **eval_resp.data[0],
+        **evaluation,
         "results": results_resp.data
     }
 

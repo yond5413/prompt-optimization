@@ -99,19 +99,29 @@ def score_correctness(expected: Any, actual: Any, strategy: str = "exact_match")
 
 async def score_correctness_llm(expected: Any, actual: Any, task_description: str) -> float:
     """Use LLM to judge correctness with a clearer rubric"""
-    prompt = f"""You are an impartial judge evaluating the quality of an AI response.
+    try:
+        # Safe string conversion for complex objects
+        def safe_str(obj):
+            if isinstance(obj, str):
+                return obj
+            try:
+                return json.dumps(obj)
+            except:
+                return str(obj)
+
+        prompt = f"""You are an impartial judge evaluating the quality of an AI response.
 Your goal is to determine if the Actual Output correctly fulfills the requirements based on the Expected Output and Task Description.
 
 Task Description: {task_description}
 
 Expected Output:
 ---
-{json.dumps(expected) if not isinstance(expected, str) else expected}
+{safe_str(expected)}
 ---
 
 Actual Output:
 ---
-{json.dumps(actual) if not isinstance(actual, str) else actual}
+{safe_str(actual)}
 ---
 
 Scoring Rubric:
@@ -123,7 +133,6 @@ Scoring Rubric:
 
 Respond with ONLY a number between 0.0 and 1.0. No preamble or explanation."""
     
-    try:
         response = await call_llm(
             [{"role": "user", "content": prompt}],
             temperature=0.0,

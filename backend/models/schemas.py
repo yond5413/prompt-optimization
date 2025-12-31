@@ -115,7 +115,7 @@ class Evaluation(BaseModel):
     dataset_id: UUID
     status: str
     aggregate_scores: Optional[Dict[str, float]]
-    evaluation_strategy: Optional[str]
+    evaluation_strategy: Optional[str] = "exact_match"
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
 
@@ -150,6 +150,8 @@ class ImprovementRequest(BaseModel):
     num_candidates: int = 3
     auto_promote: bool = False
     method: str = "meta_prompting"  # meta_prompting, cot, few_shot
+    evaluation_strategy: Optional[str] = None
+    base_version_id: Optional[UUID] = None
 
 
 class PromotionRequest(BaseModel):

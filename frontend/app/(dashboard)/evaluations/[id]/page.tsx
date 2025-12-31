@@ -3,7 +3,7 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { ArrowLeft, AlertCircle, CheckCircle2, XCircle, Zap } from "lucide-react";
-import { fetchEvaluation, fetchCandidates, promoteCandidate } from "@/lib/api";
+import { fetchEvaluation, fetchCandidates, promoteCandidate, fetchPromptVersion } from "@/lib/api";
 import EvaluationChart from "@/components/EvaluationChart";
 import ImprovementDialog from "@/components/ImprovementDialog";
 import CandidateComparisonCard from "@/components/CandidateComparisonCard";
@@ -53,9 +53,35 @@ interface ConfidenceInterval {
   total: number;
 }
 
+interface EvaluationScores {
+  correctness: number;
+  format_adherence: number;
+  clarity?: number;
+  verbosity?: number;
+  safety?: number;
+  consistency?: number;
+  error?: string;
+}
+
+interface Evaluation {
+  id: string;
+  prompt_id: string;
+  prompt_version_id: string;
+  status: string;
+  started_at: string;
+  completed_at?: string;
+  error_message?: string;
+  baseline_content?: string;
+  aggregate_scores?: EvaluationScores;
+  confidence_intervals?: Record<string, ConfidenceInterval>;
+  samples_processed?: number;
+  samples_failed?: number;
+  results?: any[];
+}
+
 export default function EvaluationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [evaluation, setEvaluation] = useState<any>(null);
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [candidates, setCandidates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
@@ -69,7 +95,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
     try {
       const evalData = await fetchEvaluation(id);
       setEvaluation(evalData);
-      
+
       // Load candidates if evaluation is completed
       if (evalData.status === "completed") {
         loadCandidates(evalData.prompt_version_id);
@@ -85,15 +111,22 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
     setLoadingCandidates(true);
     try {
       // Get prompt_id from version
-      const versionResp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/prompts/versions/${promptVersionId}`);
-      if (versionResp.ok) {
-        const version = await versionResp.json();
+      const version = await fetchPromptVersion(promptVersionId);
+      if (version) {
         const candidatesData = await fetchCandidates(version.prompt_id);
         // Filter to recent candidates (created after this evaluation started)
-        const recentCandidates = candidatesData.filter((c: any) => 
-          new Date(c.created_at) >= new Date(evaluation.started_at)
+        const evalStartedAt = evaluation?.started_at ? new Date(evaluation.started_at) : new Date(0);
+        const recentCandidates = candidatesData.filter((c: any) =>
+          new Date(c.created_at) >= evalStartedAt
         );
         setCandidates(recentCandidates);
+
+        // Store prompt_id and baseline_content for use in children
+        setEvaluation((prev: Evaluation | null) => prev ? ({
+          ...prev,
+          prompt_id: version.prompt_id,
+          baseline_content: version.content
+        }) : null);
       }
     } catch (err) {
       console.error("Failed to load candidates:", err);
@@ -110,7 +143,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
         reason: "Promoted from evaluation results"
       });
       toast.success("Candidate promoted successfully!");
-      loadCandidates(evaluation.prompt_version_id);
+      if (evaluation) loadCandidates(evaluation.prompt_version_id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to promote candidate");
     }
@@ -121,7 +154,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
     try {
       // Call API to reject (we'll need to add this endpoint)
       toast.success("Candidate rejected");
-      loadCandidates(evaluation.prompt_version_id);
+      if (evaluation) loadCandidates(evaluation.prompt_version_id);
     } catch (err) {
       toast.error("Failed to reject candidate");
     }
@@ -138,7 +171,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
       </div>
     );
   }
-  
+
   if (error) {
     return (
       <div className="flex-1 p-8 pt-6">
@@ -153,7 +186,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
       </div>
     );
   }
-  
+
   if (!evaluation) {
     return (
       <div className="flex-1 p-8 pt-6">
@@ -259,7 +292,8 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
                 </CardDescription>
               </div>
               <ImprovementDialog
-                promptId={evaluation.prompt_version_id}
+                promptId={evaluation.prompt_id}
+                baseVersionId={evaluation.prompt_version_id}
                 promptName="Current Prompt"
                 onImprovementComplete={() => loadCandidates(evaluation.prompt_version_id)}
               >
@@ -282,6 +316,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
                     key={candidate.id}
                     candidateId={candidate.id}
                     baselineVersionId={evaluation.prompt_version_id}
+                    baselineContent={evaluation.baseline_content}
                     candidateContent={candidate.content}
                     candidateRationale={candidate.rationale}
                     candidateScores={candidate.evaluation_scores}
@@ -297,7 +332,8 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
                   No improvement candidates yet. Generate candidates to see AI-suggested improvements.
                 </p>
                 <ImprovementDialog
-                  promptId={evaluation.prompt_version_id}
+                  promptId={evaluation.prompt_id}
+                  baseVersionId={evaluation.prompt_version_id}
                   promptName="Current Prompt"
                   onImprovementComplete={() => loadCandidates(evaluation.prompt_version_id)}
                 >
@@ -320,8 +356,8 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
             <CardDescription>Overall performance across all evaluation dimensions</CardDescription>
           </CardHeader>
           <CardContent>
-            {evaluation.aggregate_scores && !evaluation.aggregate_scores.error ? (
-              <EvaluationChart scores={evaluation.aggregate_scores} />
+            {evaluation?.aggregate_scores && !evaluation.aggregate_scores.error ? (
+              <EvaluationChart scores={evaluation.aggregate_scores as EvaluationScores} />
             ) : (
               <div className="flex items-center justify-center h-[200px] text-muted-foreground">
                 No scores available
@@ -386,11 +422,11 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
       {/* Results Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Per-Example Results ({evaluation.results?.length || 0})</CardTitle>
+          <CardTitle>Per-Example Results ({evaluation?.results?.length || 0})</CardTitle>
           <CardDescription>Detailed scores and outputs for each sample</CardDescription>
         </CardHeader>
         <CardContent>
-          {evaluation.results?.length > 0 ? (
+          {(evaluation?.results?.length ?? 0) > 0 ? (
             <ScrollArea className="h-[600px]">
               <Table>
                 <TableHeader>
@@ -404,7 +440,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {evaluation.results.map((res: any) => {
+                  {evaluation.results?.map((res: any) => {
                     const hasResultError = res.scores?.error;
                     return (
                       <TableRow key={res.id} className={hasResultError ? "bg-red-50 dark:bg-red-950/20" : ""}>
@@ -452,10 +488,10 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
                             <div>
                               <p className="font-semibold text-muted-foreground mb-1">Actual Output:</p>
                               <pre className="bg-muted p-2 rounded overflow-x-auto max-h-24">
-                                {res.actual_output === null 
-                                  ? "(no output)" 
-                                  : typeof res.actual_output === "string" 
-                                    ? res.actual_output 
+                                {res.actual_output === null
+                                  ? "(no output)"
+                                  : typeof res.actual_output === "string"
+                                    ? res.actual_output
                                     : JSON.stringify(res.actual_output, null, 2)}
                               </pre>
                             </div>

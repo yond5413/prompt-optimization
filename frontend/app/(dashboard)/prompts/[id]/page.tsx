@@ -81,7 +81,7 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
         setCandidates(candidatesData);
         setPromotions(promotionsData);
         setPerformance(performanceData);
-        
+
         // Find active version or use the latest one
         const active = versionsData.find((v: PromptVersion) => v.is_active) || versionsData[0];
         setActiveVersion(active);
@@ -107,7 +107,7 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
       setVersions(versionsData);
       setCandidates(candidatesData);
       setPromotions(promotionsData);
-      
+
       // Update active version if auto-promoted
       const active = versionsData.find((v: PromptVersion) => v.is_active) || versionsData[0];
       setActiveVersion(active);
@@ -118,16 +118,16 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
 
   const handlePromoteCandidate = async (candidateId: string) => {
     if (!prompt) return;
-    
+
     try {
       await promoteCandidate({
         prompt_id: prompt.id,
         candidate_id: candidateId,
         reason: "Manual promotion",
       });
-      
+
       toast.success("Candidate promoted successfully!");
-      
+
       // Reload data
       const [versionsData, candidatesData, promotionsData] = await Promise.all([
         fetchPromptVersions(id),
@@ -137,7 +137,7 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
       setVersions(versionsData);
       setCandidates(candidatesData);
       setPromotions(promotionsData);
-      
+
       const active = versionsData.find((v: PromptVersion) => v.is_active) || versionsData[0];
       setActiveVersion(active);
     } catch (err) {
@@ -276,7 +276,7 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
                   </TabsTrigger>
                   <TabsTrigger value="history">Promotion History</TabsTrigger>
                 </TabsList>
-                
+
                 <TabsContent value="content" className="mt-4">
                   <div className="flex items-center justify-between mb-4">
                     <CardTitle className="text-xl">Current Prompt Version</CardTitle>
@@ -302,7 +302,7 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
                     )}
                   </div>
                 </TabsContent>
-                
+
                 <TabsContent value="candidates" className="mt-4">
                   <CardTitle className="text-xl mb-4">Pending Candidates</CardTitle>
                   <CardDescription className="mb-4">
@@ -323,6 +323,7 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
                           key={candidate.id}
                           candidateId={candidate.id}
                           baselineVersionId={activeVersion?.id || ""}
+                          baselineContent={activeVersion?.content}
                           candidateContent={candidate.content}
                           candidateRationale={candidate.rationale}
                           candidateScores={(candidate as any).evaluation_scores}
@@ -334,7 +335,7 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
                     </div>
                   )}
                 </TabsContent>
-                
+
                 <TabsContent value="history" className="mt-4">
                   <CardTitle className="text-xl mb-4">Promotion History</CardTitle>
                   {promotions.length === 0 ? (
@@ -360,7 +361,7 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
                                   <div className="flex flex-wrap gap-2 mt-2">
                                     {Object.entries(promotion.metric_deltas).map(([key, value]) => (
                                       <Badge key={key} variant="outline" className="text-xs">
-                                        {key}: {value > 0 ? '+' : ''}{((value as number) * 100).toFixed(1)}%
+                                        {key}: {(value as number) > 0 ? '+' : ''}{((value as number) * 100).toFixed(1)}%
                                       </Badge>
                                     ))}
                                   </div>
@@ -401,8 +402,8 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
                       key={version.id}
                       className={`
                         group flex flex-col gap-2 p-4 border-l-2 hover:bg-muted/50 transition-colors cursor-pointer
-                        ${activeVersion?.id === version.id 
-                          ? "border-primary bg-muted/30" 
+                        ${activeVersion?.id === version.id
+                          ? "border-primary bg-muted/30"
                           : "border-transparent"
                         }
                       `}
@@ -422,13 +423,13 @@ export default function PromptDetailPage({ params }: { params: Promise<{ id: str
                           {formatDistanceToNow(new Date(version.created_at))} ago
                         </span>
                       </div>
-                      
+
                       {version.rationale && (
                         <p className="text-xs text-muted-foreground line-clamp-2">
                           {version.rationale}
                         </p>
                       )}
-                      
+
                       {version.generation_method && (
                         <Badge variant="outline" className="w-fit text-[10px] h-5 px-1.5 capitalize">
                           {version.generation_method}

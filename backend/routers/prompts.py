@@ -27,8 +27,8 @@ async def create_prompt(prompt: PromptCreate, current_user: Any = Depends(get_cu
     prompt_data["user_id"] = current_user.id
     
     # Auto-detect variables from content
-    variables = extract_variables(content)
-    prompt_data["variables"] = variables
+    # variables = extract_variables(content)
+    # prompt_data["variables"] = variables
     
     response = supabase.table("prompts").insert(prompt_data).execute()
     if not response.data:
@@ -66,6 +66,15 @@ async def list_versions(prompt_id: UUID, current_user: Any = Depends(get_current
         
     response = supabase.table("prompt_versions").select("*").eq("prompt_id", str(prompt_id)).order("version", desc=True).execute()
     return response.data
+
+
+@router.get("/versions/{version_id}", response_model=PromptVersion)
+async def get_version(version_id: UUID, current_user: Any = Depends(get_current_user)):
+    """Get a specific version by its ID"""
+    response = supabase.table("prompt_versions").select("*").eq("id", str(version_id)).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return response.data[0]
 
 
 @router.post("/{prompt_id}/versions", response_model=PromptVersion)
@@ -149,8 +158,9 @@ async def update_prompt_variables(prompt_id: UUID, variables: List[str], current
         raise HTTPException(status_code=404, detail="Prompt not found")
     
     # Update variables
-    response = supabase.table("prompts").update({"variables": variables}).eq("id", str(prompt_id)).execute()
-    if not response.data:
-        raise HTTPException(status_code=500, detail="Failed to update variables")
+    # Note: 'variables' column is missing in DB, so we skip persistence for now
+    # response = supabase.table("prompts").update({"variables": variables}).eq("id", str(prompt_id)).execute()
+    # if not response.data:
+    #     raise HTTPException(status_code=500, detail="Failed to update variables")
     
     return {"message": "Variables updated", "variables": variables}

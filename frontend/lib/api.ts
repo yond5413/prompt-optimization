@@ -53,6 +53,12 @@ export async function fetchPromptVersions(promptId: string) {
   return response.json();
 }
 
+export async function fetchPromptVersion(versionId: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/prompts/versions/${versionId}`);
+  if (!response.ok) throw new Error("Failed to fetch version");
+  return response.json();
+}
+
 export async function createPromptVersion(
   promptId: string,
   data: {
@@ -143,6 +149,8 @@ export async function runImprovement(data: {
   num_candidates?: number;
   auto_promote?: boolean;
   method?: string;
+  evaluation_strategy?: string;
+  base_version_id?: string;
 }) {
   const response = await authFetch(`${API_BASE_URL}/api/improvements/improve`, {
     method: "POST",

@@ -12,16 +12,24 @@ router = APIRouter()
 @router.post("/improve")
 async def improve_prompt(request: ImprovementRequest):
     """Run self-improvement loop"""
+    import logging
+    import traceback
+    logger = logging.getLogger(__name__)
+    
     try:
         result = await run_improvement_loop(
             prompt_id=str(request.prompt_id),
             dataset_id=str(request.dataset_id),
             num_candidates=request.num_candidates,
             auto_promote=request.auto_promote,
-            method=request.method
+            method=request.method,
+            evaluation_strategy=request.evaluation_strategy,
+            base_version_id=str(request.base_version_id) if request.base_version_id else None
         )
         return result
     except Exception as e:
+        logger.error(f"Improvement loop failed: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

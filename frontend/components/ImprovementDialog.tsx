@@ -49,6 +49,7 @@ interface ImprovementResult {
 interface ImprovementDialogProps {
   promptId: string;
   promptName: string;
+  baseVersionId?: string;
   onImprovementComplete?: (result: ImprovementResult) => void;
   children?: React.ReactNode;
 }
@@ -59,9 +60,17 @@ const GENERATION_METHODS = [
   { value: "few_shot", label: "Few-Shot", description: "Adds demonstration examples" },
 ];
 
+const EVALUATION_STRATEGIES = [
+  { value: "exact_match", label: "Exact Match", description: "Strict string equality" },
+  { value: "numeric_match", label: "Numeric Match", description: "Extracts and compares numbers (allows small tolerance)" },
+  { value: "llm_judge", label: "LLM Judge (Rubric)", description: "AI evaluates based on rubric" },
+  { value: "contains", label: "Contains", description: "Checks if expected output is in actual output" },
+];
+
 export default function ImprovementDialog({
   promptId,
   promptName,
+  baseVersionId,
   onImprovementComplete,
   children,
 }: ImprovementDialogProps) {
@@ -70,6 +79,7 @@ export default function ImprovementDialog({
   const [selectedDataset, setSelectedDataset] = useState<string>("");
   const [numCandidates, setNumCandidates] = useState(3);
   const [generationMethod, setGenerationMethod] = useState("meta_prompting");
+  const [evalStrategy, setEvalStrategy] = useState("exact_match");
   const [autoPromote, setAutoPromote] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -89,6 +99,9 @@ export default function ImprovementDialog({
       setDatasets(data);
       if (data.length > 0 && !selectedDataset) {
         setSelectedDataset(data[0].id);
+        if (data[0].evaluation_strategy) {
+          setEvalStrategy(data[0].evaluation_strategy);
+        }
       }
     } catch (err) {
       console.error("Failed to load datasets:", err);
@@ -115,6 +128,8 @@ export default function ImprovementDialog({
         num_candidates: numCandidates,
         auto_promote: autoPromote,
         method: generationMethod,
+        evaluation_strategy: evalStrategy,
+        base_version_id: baseVersionId,
       });
 
       setResult(improvementResult);
@@ -247,7 +262,13 @@ export default function ImprovementDialog({
                     No datasets available. Create a dataset first.
                   </div>
                 ) : (
-                  <Select value={selectedDataset} onValueChange={setSelectedDataset}>
+                  <Select value={selectedDataset} onValueChange={(val) => {
+                    setSelectedDataset(val);
+                    const ds = datasets.find(d => d.id === val);
+                    if (ds?.evaluation_strategy) {
+                      setEvalStrategy(ds.evaluation_strategy);
+                    }
+                  }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a dataset" />
                     </SelectTrigger>
@@ -288,6 +309,29 @@ export default function ImprovementDialog({
                         <div className="flex flex-col">
                           <span>{method.label}</span>
                           <span className="text-xs text-muted-foreground">{method.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Evaluation Strategy */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Correctness Metric
+                </Label>
+                <Select value={evalStrategy} onValueChange={setEvalStrategy}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EVALUATION_STRATEGIES.map((strategy) => (
+                      <SelectItem key={strategy.value} value={strategy.value}>
+                        <div className="flex flex-col">
+                          <span>{strategy.label}</span>
+                          <span className="text-xs text-muted-foreground">{strategy.description}</span>
                         </div>
                       </SelectItem>
                     ))}
