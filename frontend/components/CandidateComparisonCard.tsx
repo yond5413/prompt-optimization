@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowUp, ArrowDown, Minus, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowUp, ArrowDown, Minus, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 import { compareCandidate } from "@/lib/api";
 import PromptDiff from "./PromptDiff";
 
@@ -109,7 +109,7 @@ export default function CandidateComparisonCard({
   const hasDeltas = Object.keys(deltas).length > 0;
 
   return (
-    <Card className="w-full">
+    <Card className={`w-full ${(candidateStatus === "promoted" || candidateStatus === "accepted") ? "border-green-200 bg-green-50/30 dark:border-green-900/50 dark:bg-green-950/10" : ""}`}>
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -118,8 +118,14 @@ export default function CandidateComparisonCard({
               {candidateRationale || comparison?.candidate.rationale || "No rationale provided"}
             </CardDescription>
           </div>
-          <Badge variant={candidateStatus === "accepted" || candidateStatus === "promoted" ? "default" : "secondary"}>
-            {candidateStatus || comparison?.candidate.status || "pending"}
+          <Badge variant={
+            candidateStatus === "promoted" || candidateStatus === "accepted"
+              ? "default"
+              : candidateStatus === "rejected"
+                ? "destructive"
+                : "secondary"
+          }>
+            {(candidateStatus === "promoted" || candidateStatus === "accepted") ? "Accepted" : (candidateStatus || "pending")}
           </Badge>
         </div>
       </CardHeader>
@@ -231,29 +237,38 @@ export default function CandidateComparisonCard({
         )}
 
         {/* Action Buttons */}
-        {(onPromote || onReject) && candidateStatus !== "promoted" && candidateStatus !== "rejected" && (
-          <div className="flex gap-2 pt-4 border-t">
-            {onPromote && (
-              <Button
-                onClick={onPromote}
-                className="flex-1 bg-green-600 hover:bg-green-700"
-              >
-                Promote
-              </Button>
-            )}
-            {onReject && (
-              <Button
-                onClick={onReject}
-                variant="destructive"
-                className="flex-1"
-              >
-                Reject
-              </Button>
-            )}
+        {(onPromote || onReject) &&
+          candidateStatus !== "promoted" &&
+          candidateStatus !== "accepted" &&
+          candidateStatus !== "rejected" && (
+            <div className="flex gap-2 pt-4 border-t">
+              {onPromote && (
+                <Button
+                  onClick={onPromote}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  Promote
+                </Button>
+              )}
+              {onReject && (
+                <Button
+                  onClick={onReject}
+                  variant="destructive"
+                  className="flex-1"
+                >
+                  Reject
+                </Button>
+              )}
+            </div>
+          )}
+
+        {(candidateStatus === "promoted" || candidateStatus === "accepted") && (
+          <div className="pt-4 border-t flex items-center justify-center gap-2 text-green-600 font-medium">
+            <CheckCircle2 className="h-5 w-5" />
+            <span>This candidate has been accepted and promoted to active.</span>
           </div>
         )}
       </CardContent>
     </Card>
   );
 }
-

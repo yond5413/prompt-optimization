@@ -3,7 +3,7 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { ArrowLeft, AlertCircle, CheckCircle2, XCircle, Zap } from "lucide-react";
-import { fetchEvaluation, fetchCandidates, promoteCandidate, fetchPromptVersion } from "@/lib/api";
+import { fetchEvaluation, fetchCandidates, promoteCandidate, rejectCandidate, fetchPromptVersion } from "@/lib/api";
 import EvaluationChart from "@/components/EvaluationChart";
 import ImprovementDialog from "@/components/ImprovementDialog";
 import CandidateComparisonCard from "@/components/CandidateComparisonCard";
@@ -86,9 +86,18 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
   const [loading, setLoading] = useState(true);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [error, setError] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     loadEvaluation();
+
+    // Listen for prompt updates from other parts of the app
+    const handlePromptUpdate = () => {
+      loadEvaluation();
+    };
+
+    window.addEventListener("prompt-updated", handlePromptUpdate);
+    return () => window.removeEventListener("prompt-updated", handlePromptUpdate);
   }, [id]);
 
   async function loadEvaluation() {
@@ -128,11 +137,13 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
           baseline_content: version.content
         }) : null);
       }
-    } catch (err) {
-      console.error("Failed to load candidates:", err);
     } finally {
       setLoadingCandidates(false);
     }
+  }
+
+  async function notifyPromptUpdate() {
+    window.dispatchEvent(new CustomEvent("prompt-updated"));
   }
 
   async function handlePromoteCandidate(candidateId: string, promptId: string) {
@@ -143,6 +154,7 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
         reason: "Promoted from evaluation results"
       });
       toast.success("Candidate promoted successfully!");
+      notifyPromptUpdate();
       if (evaluation) loadCandidates(evaluation.prompt_version_id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to promote candidate");
@@ -150,9 +162,8 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
   }
 
   async function handleRejectCandidate(candidateId: string) {
-    // Update candidate status to rejected
     try {
-      // Call API to reject (we'll need to add this endpoint)
+      await rejectCandidate(candidateId);
       toast.success("Candidate rejected");
       if (evaluation) loadCandidates(evaluation.prompt_version_id);
     } catch (err) {
@@ -291,17 +302,27 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
                   AI-generated prompt candidates based on evaluation results
                 </CardDescription>
               </div>
-              <ImprovementDialog
-                promptId={evaluation.prompt_id}
-                baseVersionId={evaluation.prompt_version_id}
-                promptName="Current Prompt"
-                onImprovementComplete={() => loadCandidates(evaluation.prompt_version_id)}
-              >
-                <Button variant="outline" size="sm">
-                  <Zap className="h-4 w-4 mr-2" />
-                  Generate More
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowArchived(!showArchived)}
+                  className="text-xs"
+                >
+                  {showArchived ? "Show Pending Only" : "Show Archive"}
                 </Button>
-              </ImprovementDialog>
+                <ImprovementDialog
+                  promptId={evaluation.prompt_id}
+                  baseVersionId={evaluation.prompt_version_id}
+                  promptName="Current Prompt"
+                  onImprovementComplete={() => loadCandidates(evaluation.prompt_version_id)}
+                >
+                  <Button variant="outline" size="sm">
+                    <Zap className="h-4 w-4 mr-2" />
+                    Generate More
+                  </Button>
+                </ImprovementDialog>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -311,20 +332,32 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
               </div>
             ) : candidates.length > 0 ? (
               <div className="space-y-4">
-                {candidates.map((candidate) => (
-                  <CandidateComparisonCard
-                    key={candidate.id}
-                    candidateId={candidate.id}
-                    baselineVersionId={evaluation.prompt_version_id}
-                    baselineContent={evaluation.baseline_content}
-                    candidateContent={candidate.content}
-                    candidateRationale={candidate.rationale}
-                    candidateScores={candidate.evaluation_scores}
-                    candidateStatus={candidate.status}
-                    onPromote={() => handlePromoteCandidate(candidate.id, candidate.prompt_id)}
-                    onReject={() => handleRejectCandidate(candidate.id)}
-                  />
-                ))}
+                {candidates
+                  .filter(c => showArchived || c.status === "pending")
+                  .map((candidate) => (
+                    <CandidateComparisonCard
+                      key={candidate.id}
+                      candidateId={candidate.id}
+                      baselineVersionId={evaluation.prompt_version_id}
+                      baselineContent={evaluation.baseline_content}
+                      candidateContent={candidate.content}
+                      candidateRationale={candidate.rationale}
+                      candidateScores={candidate.evaluation_scores}
+                      candidateStatus={candidate.status}
+                      onPromote={() => handlePromoteCandidate(candidate.id, candidate.prompt_id)}
+                      onReject={() => handleRejectCandidate(candidate.id)}
+                    />
+                  ))}
+                {candidates.filter(c => c.status === "pending").length === 0 && !showArchived && (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <p>No more pending candidates for this evaluation.</p>
+                    {candidates.length > 0 && (
+                      <Button variant="link" onClick={() => setShowArchived(true)}>
+                        View Archived Candidates ({candidates.length})
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-8">

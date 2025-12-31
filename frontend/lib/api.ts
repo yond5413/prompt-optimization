@@ -173,6 +173,14 @@ export async function promoteCandidate(data: {
   return response.json();
 }
 
+export async function rejectCandidate(candidateId: string) {
+  const response = await authFetch(`${API_BASE_URL}/api/improvements/reject/${candidateId}`, {
+    method: "POST"
+  });
+  if (!response.ok) throw new Error("Failed to reject candidate");
+  return response.json();
+}
+
 export async function rollbackVersion(data: {
   prompt_id: string;
   version_id: string;
@@ -204,8 +212,10 @@ export async function fetchPromptPerformance(promptId: string) {
   return response.json();
 }
 
-export async function fetchCandidates(promptId: string) {
-  const response = await authFetch(`${API_BASE_URL}/api/improvements/candidates/${promptId}`);
+export async function fetchCandidates(promptId: string, status?: string) {
+  const url = new URL(`${API_BASE_URL}/api/improvements/candidates/${promptId}`);
+  if (status) url.searchParams.append("status", status);
+  const response = await authFetch(url.toString());
   if (!response.ok) throw new Error("Failed to fetch candidates");
   return response.json();
 }
@@ -240,8 +250,10 @@ export async function generateExplanation(data: {
   return response.json();
 }
 
-export async function fetchEvaluationCandidates(evaluationId: string) {
-  const response = await authFetch(`${API_BASE_URL}/api/improvements/candidates/evaluation/${evaluationId}`);
+export async function fetchEvaluationCandidates(evaluationId: string, status?: string) {
+  const url = new URL(`${API_BASE_URL}/api/improvements/candidates/evaluation/${evaluationId}`);
+  if (status) url.searchParams.append("status", status);
+  const response = await authFetch(url.toString());
   if (!response.ok) {
     // If endpoint doesn't exist yet, return empty array
     if (response.status === 404) return [];

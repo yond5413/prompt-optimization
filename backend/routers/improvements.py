@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Body
 from uuid import UUID
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from db.supabase_client import supabase
 from models.schemas import ImprovementRequest, PromotionRequest, Candidate, RollbackRequest
 from services.improvement_loop import run_improvement_loop, generate_promotion_explanation
@@ -86,7 +86,26 @@ async def promote_candidate(request: PromotionRequest):
     }
     supabase.table("promotion_history").insert(promotion_data).execute()
     
+    # Update candidate status
+    supabase.table("candidates").update({"status": "promoted"}).eq("id", str(request.candidate_id)).execute()
+    
+    # Disregard remaining candidates for this prompt
+    supabase.table("candidates")\
+        .update({"status": "rejected"})\
+        .eq("prompt_id", str(request.prompt_id))\
+        .eq("status", "pending")\
+        .execute()
+    
     return {"message": "Candidate promoted", "version_id": new_version_response.data[0]["id"]}
+
+
+@router.post("/reject/{candidate_id}")
+async def reject_candidate(candidate_id: str):
+    """Manually reject a candidate"""
+    response = supabase.table("candidates").update({"status": "rejected"}).eq("id", candidate_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    return {"message": "Candidate rejected"}
 
 
 @router.post("/rollback")
@@ -133,25 +152,25 @@ async def list_promotions(prompt_id: UUID = None):
 
 
 @router.get("/candidates/{prompt_id}")
-async def get_candidates(prompt_id: str):
-    """Get pending candidates for a prompt"""
-    candidates = supabase.table("candidates")\
-        .select("*")\
-        .eq("prompt_id", prompt_id)\
-        .order("created_at", desc=True)\
-        .execute()
-    return candidates.data or []
+async def get_candidates(prompt_id: str, status: Optional[str] = None):
+    """Get candidates for a prompt, optionally filtered by status"""
+    query = supabase.table("candidates").select("*").eq("prompt_id", prompt_id)
+    if status:
+        query = query.eq("status", status)
+    
+    response = query.order("created_at", desc=True).execute()
+    return response.data or []
 
 
 @router.get("/candidates/evaluation/{evaluation_id}")
-async def get_candidates_by_evaluation(evaluation_id: str):
-    """Get candidates generated for a specific evaluation"""
-    candidates = supabase.table("candidates")\
-        .select("*")\
-        .eq("evaluation_id", evaluation_id)\
-        .order("created_at", desc=True)\
-        .execute()
-    return candidates.data or []
+async def get_candidates_by_evaluation(evaluation_id: str, status: Optional[str] = None):
+    """Get candidates generated for a specific evaluation, optionally filtered by status"""
+    query = supabase.table("candidates").select("*").eq("evaluation_id", evaluation_id)
+    if status:
+        query = query.eq("status", status)
+        
+    response = query.order("created_at", desc=True).execute()
+    return response.data or []
 
 
 @router.get("/promotions/{prompt_id}")

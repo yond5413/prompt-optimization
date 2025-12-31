@@ -133,6 +133,9 @@ export default function ImprovementDialog({
       });
 
       setResult(improvementResult);
+      if (autoPromote && improvementResult.should_promote) {
+        window.dispatchEvent(new CustomEvent("prompt-updated"));
+      }
       onImprovementComplete?.(improvementResult);
     } catch (err) {
       console.error("Improvement failed:", err);
