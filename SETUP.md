@@ -11,8 +11,7 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with your credentials
-# With the code update, uvicorn will automatically listen on the PORT env var (or 8001)
-uvicorn main:app --reload --host 0.0.0.0 --port 8001
+uvicorn main:app --reload --port 8001
 ```
 
 ### 2. Supabase Setup
