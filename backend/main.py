@@ -18,12 +18,15 @@ logger.info("Backend server starting...")
 app = FastAPI(title="Prompt Optimization API")
 
 # Configure CORS
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 origins = [
-    frontend_url,
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+# Add allowed origins from env - CRITICAL: Production URLs come from env vars, NEVER hardcoded
+env_origins = os.getenv("FRONTEND_URL")
+if env_origins:
+    origins.extend([origin.strip() for origin in env_origins.split(",")])
 
 app.add_middleware(
     CORSMiddleware,
