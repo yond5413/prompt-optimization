@@ -4,6 +4,8 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { ArrowLeft, AlertCircle, CheckCircle2, XCircle, Zap } from "lucide-react";
 import { fetchEvaluation, fetchCandidates, promoteCandidate, rejectCandidate, fetchPromptVersion } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
+import { LogViewer } from "@/components/evaluations/log-viewer";
 import EvaluationChart from "@/components/EvaluationChart";
 import ImprovementDialog from "@/components/ImprovementDialog";
 import CandidateComparisonCard from "@/components/CandidateComparisonCard";
@@ -63,6 +65,13 @@ interface EvaluationScores {
   error?: string;
 }
 
+interface LogEntry {
+  timestamp: string;
+  level: string;
+  message: string;
+  module: string;
+}
+
 interface Evaluation {
   id: string;
   prompt_id: string;
@@ -76,7 +85,9 @@ interface Evaluation {
   confidence_intervals?: Record<string, ConfidenceInterval>;
   samples_processed?: number;
   samples_failed?: number;
+  variable_mapping?: Record<string, string>;
   results?: any[];
+  logs?: LogEntry[];
 }
 
 export default function EvaluationDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -97,7 +108,40 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
     };
 
     window.addEventListener("prompt-updated", handlePromptUpdate);
-    return () => window.removeEventListener("prompt-updated", handlePromptUpdate);
+
+    // Subscribe to realtime updates for this evaluation
+    const channel = supabase
+      .channel(`evaluation-${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "evaluations",
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          console.log("Evaluation detail update:", payload.new);
+
+          // Use functional update to check status transition
+          setEvaluation((prev) => {
+            const newEval = payload.new as Evaluation;
+
+            // If status changed to completed or failed, trigger a full reload to get results & metadata
+            if (prev?.status === "running" && (newEval.status === "completed" || newEval.status === "failed")) {
+              setTimeout(() => loadEvaluation(), 100); // Small delay to ensure DB consistency
+            }
+
+            return prev ? { ...prev, ...newEval } : newEval;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("prompt-updated", handlePromptUpdate);
+      supabase.removeChannel(channel);
+    };
   }, [id]);
 
   async function loadEvaluation() {
@@ -450,6 +494,11 @@ export default function EvaluationDetailPage({ params }: { params: Promise<{ id:
             )}
           </CardContent>
         </Card>
+
+        {/* Real-time Logs */}
+        <div className="lg:col-span-2">
+          <LogViewer logs={evaluation.logs || []} isLoading={evaluation.status === "running"} />
+        </div>
       </div>
 
       {/* Results Table */}

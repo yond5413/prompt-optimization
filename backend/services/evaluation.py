@@ -339,7 +339,7 @@ async def evaluate_single_example(
 ) -> Dict[str, Any]:
     """Evaluate a single example with multiple metrics"""
     
-    logger.debug(f"Evaluating example with strategy: {eval_strategy}")
+    logger.info(f"Evaluating sample {input_vars.get('id', 'unknown')} with strategy: {eval_strategy}")
     
     # 1. Format the prompt
     formatted_prompt = prompt_template
@@ -414,7 +414,7 @@ async def evaluate_single_example(
     else:
         scores["correctness"] = score_correctness(expected_output, actual_output, eval_strategy)
     
-    logger.debug(f"Correctness score: {scores['correctness']}")
+    logger.info(f"Correctness score for sample: {scores['correctness']}")
     
     # Format Adherence
     scores["format_adherence"] = score_format_adherence(actual_output, output_schema)
@@ -464,7 +464,7 @@ async def run_full_evaluation(
     
     # Run evaluations (could add batching for large datasets)
     tasks = []
-    for sample in samples:
+    for i, sample in enumerate(samples):
         # Apply variable mapping to transform dataset columns to prompt variables
         sample_input = sample.get("input", {})
         
@@ -481,6 +481,7 @@ async def run_full_evaluation(
             # Use sample input as-is
             input_vars = sample_input
         
+        logger.info(f"Processing sample {i+1}/{len(samples)}...")
         tasks.append(
             evaluate_single_example(
                 prompt_template,

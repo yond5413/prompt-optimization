@@ -10,7 +10,35 @@ from services.evaluation import run_full_evaluation
 from services.improvement_loop import run_improvement_loop
 import datetime
 
+import datetime
+import threading
+
 logger = logging.getLogger(__name__)
+
+class EvaluationLogHandler(logging.Handler):
+    """Custom log handler to capture logs for a specific evaluation"""
+    def __init__(self):
+        super().__init__()
+        self.logs = []
+        self._lock = threading.Lock()
+        self.setFormatter(logging.Formatter('%(message)s'))
+
+    def emit(self, record):
+        try:
+            log_entry = {
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "level": record.levelname,
+                "message": self.format(record),
+                "module": record.module,
+            }
+            with self._lock:
+                self.logs.append(log_entry)
+        except Exception:
+            self.handleError(record)
+
+    def get_logs(self):
+        with self._lock:
+            return list(self.logs)
 
 router = APIRouter()
 
@@ -31,7 +59,33 @@ async def list_evaluations():
 async def run_eval_task(evaluation_id: str, strategy_override: Optional[str] = None):
     """Background task to run evaluation with comprehensive logging"""
     logger.info(f"Starting evaluation task for {evaluation_id}")
+    
+    # Setup log capture
+    eval_handler = EvaluationLogHandler()
+    eval_handler.setLevel(logging.DEBUG)
+    
+    # Target loggers to capture
+    capture_loggers = [
+        logging.getLogger("services.evaluation"),
+        logging.getLogger(__name__),
+        logging.getLogger("services.llm_client"),
+    ]
+    
+    for logger_to_capture in capture_loggers:
+        logger_to_capture.addHandler(eval_handler)
+        
     error_message = None
+    
+    async def flush_logs():
+        """Helper to update logs in DB without stopping the task"""
+        try:
+            logs = eval_handler.get_logs()
+            supabase.table("evaluations").update({"logs": logs}).eq("id", evaluation_id).execute()
+        except Exception as e:
+            logger.warning(f"Failed to flush logs: {str(e)}")
+
+    # Initial log
+    await flush_logs()
     
     try:
         # 1. Get evaluation details
@@ -162,6 +216,9 @@ async def run_eval_task(evaluation_id: str, strategy_override: Optional[str] = N
             
         supabase.table("evaluations").update(update_data).eq("id", evaluation_id).execute()
         
+        # Final log flush
+        await flush_logs()
+        
         logger.info(f"Evaluation {evaluation_id} completed with status: {status}")
         if error_message:
             logger.warning(f"Evaluation notes: {error_message}")
@@ -171,6 +228,12 @@ async def run_eval_task(evaluation_id: str, strategy_override: Optional[str] = N
         logger.error(f"Evaluation task failed for {evaluation_id}: {error_message}")
         logger.error(traceback.format_exc())
         _update_evaluation_failed(evaluation_id, error_message)
+    finally:
+        # Cleanup log handler
+        for logger_to_capture in capture_loggers:
+            logger_to_capture.removeHandler(eval_handler)
+        # Ensure final logs are saved
+        await flush_logs()
 
 
 def _update_evaluation_failed(evaluation_id: str, error_message: str):

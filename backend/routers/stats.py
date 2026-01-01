@@ -9,11 +9,11 @@ router = APIRouter()
 async def get_stats(current_user: Any = Depends(get_current_user)):
     """Get enhanced dashboard statistics"""
     
-    # Get counts from Supabase
-    prompts_count = supabase.table("prompts").select("*", count="exact", head=True).execute()
-    datasets_count = supabase.table("datasets").select("*", count="exact", head=True).execute()
-    evaluations_count = supabase.table("evaluations").select("*", count="exact", head=True).execute()
-    candidates_count = supabase.table("candidates").select("*", count="exact", head=True).execute()
+    # Get counts from Supabase - removed head=True as it was returning 0 counts in this environment
+    prompts_count = supabase.table("prompts").select("*", count="exact").execute()
+    datasets_count = supabase.table("datasets").select("*", count="exact").execute()
+    evaluations_count = supabase.table("evaluations").select("*", count="exact").execute()
+    candidates_count = supabase.table("candidates").select("*", count="exact").execute()
     
     # Get completed evaluations with scores
     completed_evals = supabase.table("evaluations")\
@@ -31,14 +31,17 @@ async def get_stats(current_user: Any = Depends(get_current_user)):
     }
     
     if completed_evals.data:
+        # Filter out evaluations where all core metrics are 0 (likely noise or failed-but-marked-complete)
         valid_scores = []
         for eval_data in completed_evals.data:
-            if eval_data.get("aggregate_scores"):
-                valid_scores.append(eval_data["aggregate_scores"])
+            scores = eval_data.get("aggregate_scores")
+            if scores and any(scores.get(m, 0) > 0 for m in ["correctness", "format_adherence", "clarity", "safety"]):
+                valid_scores.append(scores)
         
         if valid_scores:
             for metric in average_scores.keys():
-                values = [s.get(metric, 0) for s in valid_scores if s.get(metric) is not None]
+                # Only average scores that actually have the metric
+                values = [s.get(metric) for s in valid_scores if s.get(metric) is not None]
                 if values:
                     average_scores[metric] = sum(values) / len(values)
     
@@ -50,7 +53,7 @@ async def get_stats(current_user: Any = Depends(get_current_user)):
         .execute()
     
     # Get promotion history for improvement rate
-    promotions = supabase.table("promotion_history").select("*", count="exact", head=True).execute()
+    promotions = supabase.table("promotion_history").select("*", count="exact").execute()
     total_candidates = candidates_count.count or 0
     total_promotions = promotions.count or 0
     improvement_rate = (total_promotions / total_candidates * 100) if total_candidates > 0 else 0

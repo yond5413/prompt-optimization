@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CreateEvaluationDialog } from "@/components/evaluations/create-evaluation-dialog";
 import { fetchEvaluations } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import {
   Table,
   TableBody,
@@ -56,6 +57,42 @@ export default function EvaluationsPage() {
 
   useEffect(() => {
     fetchEvaluationsData();
+
+    const channel = supabase
+      .channel("evaluations-list-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "evaluations",
+        },
+        (payload: any) => {
+          if (payload.eventType === "INSERT") {
+            setEvaluations((prev) => [payload.new as Evaluation, ...prev]);
+          } else if (payload.eventType === "UPDATE") {
+            const updatedEval = payload.new as Evaluation;
+
+            setEvaluations((prev) => {
+              const existing = prev.find(e => e.id === updatedEval.id);
+
+              // If status changed to completed or failed, trigger a full refetch
+              if (existing?.status === "running" && (updatedEval.status === "completed" || updatedEval.status === "failed")) {
+                setTimeout(() => fetchEvaluationsData(), 100);
+              }
+
+              return prev.map((e) => (e.id === updatedEval.id ? updatedEval : e));
+            });
+          } else if (payload.eventType === "DELETE") {
+            setEvaluations((prev) => prev.filter((e) => e.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const getStatusBadge = (status: string) => {

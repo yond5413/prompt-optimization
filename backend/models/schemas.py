@@ -114,10 +114,16 @@ class Evaluation(BaseModel):
     prompt_version_id: UUID
     dataset_id: UUID
     status: str
-    aggregate_scores: Optional[Dict[str, float]]
+    aggregate_scores: Optional[Dict[str, Any]] = None
+    confidence_intervals: Optional[Dict[str, Any]] = None
     evaluation_strategy: Optional[str] = "exact_match"
-    started_at: Optional[datetime]
-    completed_at: Optional[datetime]
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    samples_processed: int = 0
+    samples_failed: int = 0
+    variable_mapping: Optional[Dict[str, str]] = None
+    logs: List[Dict[str, Any]] = []
 
     class Config:
         from_attributes = True
