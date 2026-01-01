@@ -9,7 +9,11 @@ from dotenv import load_dotenv
 
 # Load .env.local file from backend directory
 backend_dir = Path(__file__).parent.parent
-load_dotenv(dotenv_path=backend_dir / ".env.local")
+env_local_path = backend_dir / ".env.local"
+if env_local_path.exists():
+    load_dotenv(dotenv_path=env_local_path)
+else:
+    load_dotenv()
 
 logger = logging.getLogger(__name__)
 
