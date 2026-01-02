@@ -50,6 +50,14 @@ async def log_requests_middleware(request: Request, call_next):
 async def health_check():
     return {"status": "healthy"}
 
+@app.get("/")
+@app.head("/")
+async def root():
+    return {
+        "service": "Prompt Optimization API",
+        "status": "ok"
+    }
+
 # Include routers - auth is handled within each endpoint
 app.include_router(prompts.router, prefix="/api/prompts", tags=["prompts"])
 app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
