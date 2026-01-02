@@ -26,7 +26,11 @@ origins = [
 # Add allowed origins from env - CRITICAL: Production URLs come from env vars, NEVER hardcoded
 env_origins = os.getenv("FRONTEND_URL")
 if env_origins:
-    origins.extend([origin.strip() for origin in env_origins.split(",")])
+    # Split by comma, strip whitespace, AND strip trailing slashes
+    urls = [origin.strip().rstrip("/") for origin in env_origins.split(",")]
+    origins.extend([url for url in urls if url])
+
+logger.info(f"Allowed CORS origins: {origins}")
 
 app.add_middleware(
     CORSMiddleware,
